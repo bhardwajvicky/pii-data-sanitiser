@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using DataObfuscation.Configuration;
+using DataObfuscation.Common.DataTypes;
 
 namespace DataObfuscation.Configuration;
 
@@ -12,13 +13,8 @@ public class ConfigurationValidator : IConfigurationValidator
 {
     private readonly ILogger<ConfigurationValidator> _logger;
     
-    private static readonly HashSet<string> SupportedDataTypes = new()
-    {
-        "FirstName", "LastName", "FullName", "LicenseNumber", "Email", "Phone",
-        "VehicleRegistration", "VINNumber", "VehicleMakeModel", "EngineNumber",
-        "CompanyName", "BusinessABN", "BusinessACN", "Address", "GPSCoordinate",
-        "RouteCode", "DepotLocation", "CreditCard"
-    };
+    // Use the centralized data types from the common library
+    private static readonly HashSet<string> ValidDataTypes = Common.DataTypes.SupportedDataTypes.AllSupportedTypes;
 
     public ConfigurationValidator(ILogger<ConfigurationValidator> logger)
     {
@@ -79,9 +75,9 @@ public class ConfigurationValidator : IConfigurationValidator
                 continue;
             }
 
-            if (!SupportedDataTypes.Contains(config.BaseType))
+            if (!ValidDataTypes.Contains(config.BaseType))
             {
-                result.AddError($"DataType '{typeName}' has unsupported BaseType '{config.BaseType}'. Supported types: {string.Join(", ", SupportedDataTypes)}");
+                result.AddError($"DataType '{typeName}' has unsupported BaseType '{config.BaseType}'. Supported types: {Common.DataTypes.SupportedDataTypes.GetAllSupportedTypesString()}");
             }
         }
     }
@@ -160,7 +156,7 @@ public class ConfigurationValidator : IConfigurationValidator
         }
 
         // Check if data type is supported (will be checked against custom types or base types)
-        if (!SupportedDataTypes.Contains(column.DataType))
+        if (!ValidDataTypes.Contains(column.DataType))
         {
             // This might be a custom data type, will be validated in ValidateDataTypes
             _logger.LogDebug("Column '{TableName}.{ColumnName}' uses data type '{DataType}' which may be a custom type", 

@@ -89,6 +89,9 @@ mappings/
 **/appsettings.json
 **/appsettings.*.json
 
+# Generated JSON configuration files
+JSON/
+
 # OS generated files
 .DS_Store
 .DS_Store?

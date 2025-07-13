@@ -22,6 +22,15 @@ public interface IDeterministicAustralianProvider
     string GetBusinessABN(string originalValue, string? customSeed = null);
     string GetBusinessACN(string originalValue, string? customSeed = null);
     string GetAddress(string originalValue, string? customSeed = null);
+    string GetFullAddress(string originalValue, string? customSeed = null);
+    string GetAddressLine1(string originalValue, string? customSeed = null);
+    string GetAddressLine2(string originalValue, string? customSeed = null);
+    string GetCity(string originalValue, string? customSeed = null);
+    string GetSuburb(string originalValue, string? customSeed = null);
+    string GetState(string originalValue, string? customSeed = null);
+    string GetStateAbbr(string originalValue, string? customSeed = null);
+    string GetPostCode(string originalValue, string? customSeed = null);
+    string GetCountry(string originalValue, string? customSeed = null);
     string GetGPSCoordinate(string originalValue, string? customSeed = null);
     string GetRouteCode(string originalValue, string? customSeed = null);
     string GetDepotLocation(string originalValue, string? customSeed = null);
@@ -208,6 +217,103 @@ public class DeterministicAustralianProvider : IDeterministicAustralianProvider
             var postcode = faker.Random.Number(1000, 9999);
             
             return $"{streetNumber} {streetName} {streetType}, {suburb} {state} {postcode}";
+        });
+    }
+
+    public string GetFullAddress(string originalValue, string? customSeed = null)
+    {
+        return GetOrCreateMapping($"FullAddress_{originalValue}", customSeed, () =>
+        {
+            var faker = CreateFaker(originalValue, customSeed);
+            var streetNumber = faker.Random.Number(1, 999);
+            var streetName = faker.Address.StreetName();
+            var streetType = faker.PickRandom(new[] { "Street", "Road", "Avenue", "Drive", "Lane", "Circuit" });
+            var suburb = faker.Address.City();
+            var state = faker.PickRandom(AustralianStates);
+            var postcode = faker.Random.Number(1000, 9999);
+            
+            return $"{streetNumber} {streetName} {streetType}, {suburb} {state} {postcode}";
+        });
+    }
+
+    public string GetAddressLine1(string originalValue, string? customSeed = null)
+    {
+        return GetOrCreateMapping($"AddressLine1_{originalValue}", customSeed, () =>
+        {
+            var faker = CreateFaker(originalValue, customSeed);
+            var streetNumber = faker.Random.Number(1, 999);
+            var streetName = faker.Address.StreetName();
+            var streetType = faker.PickRandom(new[] { "Street", "Road", "Avenue", "Drive", "Lane", "Circuit" });
+            
+            return $"{streetNumber} {streetName} {streetType}";
+        });
+    }
+
+    public string GetAddressLine2(string originalValue, string? customSeed = null)
+    {
+        return GetOrCreateMapping($"AddressLine2_{originalValue}", customSeed, () =>
+        {
+            var faker = CreateFaker(originalValue, customSeed);
+            // 30% chance of having a second address line
+            if (faker.Random.Bool(0.3f))
+            {
+                var unitTypes = new[] { "Unit", "Apt", "Suite", "Level" };
+                var unitType = faker.PickRandom(unitTypes);
+                var unitNumber = faker.Random.Number(1, 999);
+                return $"{unitType} {unitNumber}";
+            }
+            return string.Empty;
+        });
+    }
+
+    public string GetCity(string originalValue, string? customSeed = null)
+    {
+        return GetOrCreateMapping($"City_{originalValue}", customSeed, () =>
+        {
+            var faker = CreateFaker(originalValue, customSeed);
+            return faker.Address.City();
+        });
+    }
+
+    public string GetSuburb(string originalValue, string? customSeed = null)
+    {
+        // In Australia, suburb is equivalent to city
+        return GetCity(originalValue, customSeed);
+    }
+
+    public string GetState(string originalValue, string? customSeed = null)
+    {
+        return GetOrCreateMapping($"State_{originalValue}", customSeed, () =>
+        {
+            var faker = CreateFaker(originalValue, customSeed);
+            return faker.PickRandom(AustralianStates);
+        });
+    }
+
+    public string GetStateAbbr(string originalValue, string? customSeed = null)
+    {
+        return GetOrCreateMapping($"StateAbbr_{originalValue}", customSeed, () =>
+        {
+            var faker = CreateFaker(originalValue, customSeed);
+            var stateAbbrs = new[] { "NSW", "VIC", "QLD", "WA", "SA", "TAS", "NT", "ACT" };
+            return faker.PickRandom(stateAbbrs);
+        });
+    }
+
+    public string GetPostCode(string originalValue, string? customSeed = null)
+    {
+        return GetOrCreateMapping($"PostCode_{originalValue}", customSeed, () =>
+        {
+            var faker = CreateFaker(originalValue, customSeed);
+            return faker.Random.Number(1000, 9999).ToString();
+        });
+    }
+
+    public string GetCountry(string originalValue, string? customSeed = null)
+    {
+        return GetOrCreateMapping($"Country_{originalValue}", customSeed, () =>
+        {
+            return "Australia"; // Always return Australia for Australian provider
         });
     }
 

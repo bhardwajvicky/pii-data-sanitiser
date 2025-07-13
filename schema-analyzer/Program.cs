@@ -51,21 +51,30 @@ class Program
             logger.LogInformation("Identified {PIITableCount} tables with PII data containing {PIIColumnCount} PII columns",
                 piiAnalysis.TablesWithPII.Count, piiAnalysis.TablesWithPII.Sum(t => t.PIIColumns.Count));
 
-            // Generate obfuscation configuration
-            var obfuscationConfig = configGenerator.GenerateObfuscationConfiguration(piiAnalysis, connectionString);
+            // Generate obfuscation configuration files
+            var (mapping, config) = configGenerator.GenerateObfuscationFiles(piiAnalysis, connectionString);
 
             // Ensure output directory exists
             Directory.CreateDirectory(outputDirectory);
             
-            // Save configuration to JSON file
-            var outputPath = Path.Combine(outputDirectory, $"{databaseName}.json");
-            await File.WriteAllTextAsync(outputPath, 
-                System.Text.Json.JsonSerializer.Serialize(obfuscationConfig, new System.Text.Json.JsonSerializerOptions
+            // Save mapping file
+            var mappingPath = Path.Combine(outputDirectory, $"{databaseName}-mapping.json");
+            await File.WriteAllTextAsync(mappingPath, 
+                System.Text.Json.JsonSerializer.Serialize(mapping, new System.Text.Json.JsonSerializerOptions
                 {
                     WriteIndented = true
                 }));
 
-            logger.LogInformation("Obfuscation configuration saved to: {OutputPath}", outputPath);
+            // Save configuration file
+            var configPath = Path.Combine(outputDirectory, $"{databaseName}-config.json");
+            await File.WriteAllTextAsync(configPath, 
+                System.Text.Json.JsonSerializer.Serialize(config, new System.Text.Json.JsonSerializerOptions
+                {
+                    WriteIndented = true
+                }));
+
+            logger.LogInformation("Table/column mapping saved to: {MappingPath}", mappingPath);
+            logger.LogInformation("Obfuscation configuration saved to: {ConfigPath}", configPath);
 
             // Generate summary report
             var summaryPath = Path.Combine(outputDirectory, $"{databaseName}_analysis_summary.json");

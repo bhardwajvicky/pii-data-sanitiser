@@ -1,12 +1,14 @@
 using System.Text.Json;
 using FluentValidation;
 using Microsoft.Extensions.Logging;
+using DataObfuscation.Common.Models;
 
 namespace DataObfuscation.Configuration;
 
 public interface IConfigurationParser
 {
     Task<ObfuscationConfiguration> LoadConfigurationAsync(string configFilePath);
+    Task<ObfuscationConfiguration> LoadConfigurationAsync(string mappingFilePath, string configFilePath);
     Task ValidateConfigurationAsync(ObfuscationConfiguration config);
 }
 
@@ -49,10 +51,244 @@ public class ConfigurationParser : IConfigurationParser
         await ValidateConfigurationAsync(config);
         
         _logger.LogInformation("Configuration loaded successfully");
-        _logger.LogInformation("Tables to process: {TableCount}", config.Tables.Count);
+        _logger.LogInformation("Tables to process: {TableCount}", config.Tables?.Count ?? 0);
         _logger.LogInformation("Custom data types: {DataTypeCount}", config.DataTypes.Count);
         
         return config;
+    }
+
+    public async Task<ObfuscationConfiguration> LoadConfigurationAsync(string mappingFilePath, string configFilePath)
+    {
+        _logger.LogInformation("Loading configuration from mapping file: {MappingFilePath} and config file: {ConfigFilePath}", 
+            mappingFilePath, configFilePath);
+
+        if (!File.Exists(mappingFilePath))
+        {
+            throw new FileNotFoundException($"Mapping file not found: {mappingFilePath}");
+        }
+        
+        if (!File.Exists(configFilePath))
+        {
+            throw new FileNotFoundException($"Configuration file not found: {configFilePath}");
+        }
+
+        var options = new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true,
+            AllowTrailingCommas = true,
+            ReadCommentHandling = JsonCommentHandling.Skip
+        };
+
+        // Load mapping file
+        var mappingContent = await File.ReadAllTextAsync(mappingFilePath);
+        var mapping = JsonSerializer.Deserialize<TableColumnMapping>(mappingContent, options);
+        
+        if (mapping == null)
+        {
+            throw new InvalidOperationException("Failed to deserialize mapping file");
+        }
+
+        // Load configuration file
+        var configContent = await File.ReadAllTextAsync(configFilePath);
+        var config = JsonSerializer.Deserialize<DataObfuscation.Common.Models.ObfuscationConfiguration>(configContent, options);
+        
+        if (config == null)
+        {
+            throw new InvalidOperationException("Failed to deserialize configuration file");
+        }
+
+        // Merge mapping and configuration into the legacy format
+        var mergedConfig = MergeConfiguration(mapping, config);
+
+        await ValidateConfigurationAsync(mergedConfig);
+        
+        _logger.LogInformation("Configuration loaded successfully from split files");
+        _logger.LogInformation("Tables to process: {TableCount}", mapping.Tables.Count);
+        _logger.LogInformation("Custom data types: {DataTypeCount}", config.DataTypes.Count);
+        
+        return mergedConfig;
+    }
+
+    private ObfuscationConfiguration MergeConfiguration(TableColumnMapping mapping, 
+        DataObfuscation.Common.Models.ObfuscationConfiguration config)
+    {
+        var mergedConfig = new ObfuscationConfiguration
+        {
+            Metadata = new MetadataConfiguration
+            {
+                ConfigVersion = config.Metadata.ConfigVersion,
+                Description = config.Metadata.Description,
+                CreatedBy = config.Metadata.CreatedBy,
+                CreatedDate = config.Metadata.CreatedDate,
+                LastModified = config.Metadata.LastModified
+            },
+            Global = new GlobalConfiguration
+            {
+                ConnectionString = config.Global.ConnectionString,
+                GlobalSeed = config.Global.GlobalSeed,
+                BatchSize = config.Global.BatchSize,
+                ParallelThreads = config.Global.ParallelThreads,
+                MaxCacheSize = config.Global.MaxCacheSize,
+                DryRun = config.Global.DryRun,
+                PersistMappings = config.Global.PersistMappings,
+                EnableValueCaching = config.Global.EnableValueCaching,
+                CommandTimeoutSeconds = config.Global.CommandTimeoutSeconds,
+                MappingCacheDirectory = config.Global.MappingCacheDirectory
+            },
+            DataTypes = ConvertCustomDataTypes(config.DataTypes),
+            ReferentialIntegrity = ConvertReferentialIntegrity(config.ReferentialIntegrity),
+            Tables = ConvertTableMappings(mapping.Tables),
+            PostProcessing = new PostProcessingConfiguration
+            {
+                GenerateReport = config.PostProcessing.GenerateReport,
+                ReportPath = config.PostProcessing.ReportPath,
+                ValidateResults = config.PostProcessing.ValidateResults,
+                BackupMappings = config.PostProcessing.BackupMappings
+            }
+        };
+
+        return mergedConfig;
+    }
+
+    private Dictionary<string, CustomDataType> ConvertCustomDataTypes(
+        Dictionary<string, DataObfuscation.Common.Models.CustomDataType> sourceDataTypes)
+    {
+        var result = new Dictionary<string, CustomDataType>();
+        
+        foreach (var kvp in sourceDataTypes)
+        {
+            result[kvp.Key] = new CustomDataType
+            {
+                BaseType = kvp.Value.BaseType,
+                CustomSeed = kvp.Value.CustomSeed,
+                PreserveLength = kvp.Value.PreserveLength,
+                Validation = ConvertValidation(kvp.Value.Validation),
+                Formatting = ConvertFormatting(kvp.Value.Formatting),
+                Transformation = ConvertTransformation(kvp.Value.Transformation)
+            };
+        }
+        
+        return result;
+    }
+
+    private ValidationConfiguration? ConvertValidation(
+        DataObfuscation.Common.Models.ValidationConfiguration? source)
+    {
+        if (source == null) return null;
+        
+        return new ValidationConfiguration
+        {
+            Regex = source.Regex,
+            MinLength = source.MinLength,
+            MaxLength = source.MaxLength,
+            AllowedValues = source.AllowedValues
+        };
+    }
+
+    private FormattingConfiguration? ConvertFormatting(
+        DataObfuscation.Common.Models.FormattingConfiguration? source)
+    {
+        if (source == null) return null;
+        
+        return new FormattingConfiguration
+        {
+            AddPrefix = source.Prefix,
+            AddSuffix = source.Suffix,
+            Pattern = source.Pattern
+        };
+    }
+
+    private TransformationConfiguration? ConvertTransformation(
+        DataObfuscation.Common.Models.TransformationConfiguration? source)
+    {
+        if (source == null) return null;
+        
+        return new TransformationConfiguration
+        {
+            PreProcess = new List<string>(),
+            PostProcess = new List<string>()
+        };
+    }
+
+    private ReferentialIntegrityConfiguration ConvertReferentialIntegrity(
+        DataObfuscation.Common.Models.ReferentialIntegrityConfiguration source)
+    {
+        var result = new ReferentialIntegrityConfiguration
+        {
+            Enabled = source.Enabled,
+            Relationships = new List<RelationshipConfiguration>()
+        };
+        
+        foreach (var rel in source.Relationships)
+        {
+            result.Relationships.Add(new RelationshipConfiguration
+            {
+                Name = $"{rel.ParentTable}_{rel.ParentColumn}",
+                PrimaryTable = rel.ParentTable,
+                PrimaryColumn = rel.ParentColumn,
+                RelatedMappings = new List<RelatedMapping>
+                {
+                    new RelatedMapping
+                    {
+                        Table = rel.ChildTable,
+                        Column = rel.ChildColumn,
+                        Relationship = "exact"
+                    }
+                }
+            });
+        }
+        
+        return result;
+    }
+
+    private List<TableConfiguration> ConvertTableMappings(List<TableMapping> mappings)
+    {
+        var result = new List<TableConfiguration>();
+        
+        foreach (var mapping in mappings.Where(t => t.Enabled))
+        {
+            var tableConfig = new TableConfiguration
+            {
+                TableName = mapping.FullTableName,
+                Priority = 1, // Default priority since mapping doesn't have this
+                PrimaryKey = mapping.PrimaryKey,
+                CustomBatchSize = null, // Will use global default
+                Conditions = null,
+                Columns = ConvertColumnMappings(mapping.Columns)
+            };
+            
+            result.Add(tableConfig);
+        }
+        
+        return result;
+    }
+    
+    private List<ColumnConfiguration> ConvertColumnMappings(List<ColumnMapping> mappings)
+    {
+        var result = new List<ColumnConfiguration>();
+        
+        foreach (var mapping in mappings.Where(c => c.Enabled))
+        {
+            var columnConfig = new ColumnConfiguration
+            {
+                ColumnName = mapping.ColumnName,
+                DataType = mapping.DataType,
+                Enabled = mapping.Enabled,
+                PreserveLength = mapping.PreserveLength,
+                Conditions = mapping.IsNullable ? new ConditionsConfiguration { OnlyIfNotNull = true } : null,
+                Fallback = new FallbackConfiguration
+                {
+                    OnError = "useOriginal",
+                    DefaultValue = null
+                },
+                Validation = null,
+                Transformation = null
+            };
+            
+            result.Add(columnConfig);
+        }
+        
+        return result;
     }
 
     public async Task ValidateConfigurationAsync(ObfuscationConfiguration config)

@@ -23,17 +23,19 @@ class Program
             if (args.Length == 0)
             {
                 Console.WriteLine("Usage: DataObfuscation.exe <config-file.json> [--dry-run] [--validate-only]");
+                Console.WriteLine("   or: DataObfuscation.exe <mapping-file.json> <config-file.json> [--dry-run] [--validate-only]");
                 Console.WriteLine();
                 Console.WriteLine("Examples:");
                 Console.WriteLine("  DataObfuscation.exe production-config.json");
+                Console.WriteLine("  DataObfuscation.exe AdventureWorks2019-mapping.json AdventureWorks2019-config.json");
                 Console.WriteLine("  DataObfuscation.exe test-config.json --dry-run");
                 Console.WriteLine("  DataObfuscation.exe config.json --validate-only");
                 return 1;
             }
 
-            var configFile = args[0];
             var dryRun = args.Contains("--dry-run");
             var validateOnly = args.Contains("--validate-only");
+            var nonFlagArgs = args.Where(arg => !arg.StartsWith("--")).ToArray();
 
             var host = CreateHostBuilder(args).Build();
             
@@ -44,9 +46,29 @@ class Program
             var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
 
             logger.LogInformation("Starting Data Obfuscation Tool");
-            logger.LogInformation("Configuration file: {ConfigFile}", configFile);
-
-            var config = await configParser.LoadConfigurationAsync(configFile);
+            
+            ObfuscationConfiguration config;
+            
+            if (nonFlagArgs.Length == 1)
+            {
+                // Single file mode (legacy)
+                var configFile = nonFlagArgs[0];
+                logger.LogInformation("Configuration file: {ConfigFile}", configFile);
+                config = await configParser.LoadConfigurationAsync(configFile);
+            }
+            else if (nonFlagArgs.Length == 2)
+            {
+                // Two file mode (mapping + config)
+                var mappingFile = nonFlagArgs[0];
+                var configFile = nonFlagArgs[1];
+                logger.LogInformation("Mapping file: {MappingFile}, Configuration file: {ConfigFile}", mappingFile, configFile);
+                config = await configParser.LoadConfigurationAsync(mappingFile, configFile);
+            }
+            else
+            {
+                Console.WriteLine("Invalid number of arguments. Expected 1 or 2 file paths.");
+                return 1;
+            }
             
             // Always validate configuration
             var validationResult = configValidator.ValidateConfiguration(config);
