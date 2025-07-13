@@ -78,52 +78,45 @@ public class ClaudeApiService : IClaudeApiService
 
     private string BuildSchemaPIIPrompt(string schemaDescription)
     {
-        return $@"You are an expert data privacy consultant analyzing a database schema to identify columns that likely contain Personally Identifiable Information (PII).
-
-Please analyze the following database schema and identify columns that likely contain PII data:
-
-{schemaDescription}
-
-For each column you identify as containing PII, classify it into one of these categories:
-- FirstName: First names, given names only (NOT full names)
-- LastName: Last names, surnames only (NOT full names)
-- DriverName: Full names, display names, complete personal names
-- Address: Physical addresses, location data, postal codes
-- DriverPhone: Phone numbers, contact numbers
-- ContactEmail: Email addresses
-- DriverLicenseNumber: License numbers, permit IDs
-- BusinessABN: Business numbers, tax IDs
-- VehicleRegistration: Vehicle plates, registration numbers
-- VINNumber: Vehicle identification numbers
-- GPSCoordinate: Coordinates, location data
-- VehicleMakeModel: Vehicle information
-- OperatorName: Company/operator names
-- RouteCode: Route identifiers
-
-IMPORTANT: Distinguish carefully between:
-- FirstName: Use ONLY for columns named "FirstName", "GivenName", "FName" etc.
-- LastName: Use ONLY for columns named "LastName", "Surname", "FamilyName", "LName" etc.
-- DriverName: Use for columns containing full names or general "Name" fields
-
-Please respond in JSON format with an array of objects containing:
-- tableName: Full table name (schema.table)
-- columnName: Column name
-- piiType: One of the categories above
-- confidence: Confidence level (0.0-1.0)
-- reasoning: Brief explanation why this column contains PII
-
-Only include columns where confidence >= 0.7. Focus on actual PII data, not technical IDs or system fields.
-
-Example response:
-[
-  {{
-    ""tableName"": ""Person.Person"",
-    ""columnName"": ""FirstName"",
-    ""piiType"": ""DriverName"",
-    ""confidence"": 0.95,
-    ""reasoning"": ""Column clearly contains personal first names""
-  }}
-]";
+        return "You are an expert data privacy consultant analyzing a database schema to identify columns that likely contain Personally Identifiable Information (PII).\n\n" +
+               "Please analyze the following database schema and identify columns that likely contain PII data:\n\n" +
+               schemaDescription + "\n\n" +
+               "For each column you identify as containing PII, classify it into one of these categories:\n" +
+               "- FirstName: First names, given names only (NOT full names)\n" +
+               "- LastName: Last names, surnames only (NOT full names)\n" +
+               "- DriverName: Full names, display names, complete personal names\n" +
+               "- Address: Physical addresses, location data, postal codes\n" +
+               "- DriverPhone: Phone numbers, contact numbers\n" +
+               "- ContactEmail: Email addresses\n" +
+               "- DriverLicenseNumber: License numbers, permit IDs\n" +
+               "- BusinessABN: Business numbers, tax IDs\n" +
+               "- VehicleRegistration: Vehicle plates, registration numbers\n" +
+               "- VINNumber: Vehicle identification numbers\n" +
+               "- GPSCoordinate: Coordinates, location data\n" +
+               "- VehicleMakeModel: Vehicle information\n" +
+               "- OperatorName: Company/operator names\n" +
+               "- RouteCode: Route identifiers\n\n" +
+               "IMPORTANT: Distinguish carefully between:\n" +
+               "- FirstName: Use ONLY for columns named \"FirstName\", \"GivenName\", \"FName\" etc.\n" +
+               "- LastName: Use ONLY for columns named \"LastName\", \"Surname\", \"FamilyName\", \"LName\" etc.\n" +
+               "- DriverName: Use for columns containing full names or general \"Name\" fields\n\n" +
+               "Please respond in JSON format with an array of objects containing:\n" +
+               "- tableName: Full table name (schema.table)\n" +
+               "- columnName: Column name\n" +
+               "- piiType: One of the categories above\n" +
+               "- confidence: Confidence level (0.0-1.0)\n" +
+               "- reasoning: Brief explanation why this column contains PII\n\n" +
+               "Only include columns where confidence >= 0.7. Focus on actual PII data, not technical IDs or system fields.\n\n" +
+               "Example response:\n" +
+               "[\n" +
+               "  {\n" +
+               "    \"tableName\": \"Person.Person\",\n" +
+               "    \"columnName\": \"FirstName\",\n" +
+               "    \"piiType\": \"FirstName\",\n" +
+               "    \"confidence\": 0.95,\n" +
+               "    \"reasoning\": \"Column clearly contains personal first names\"\n" +
+               "  }\n" +
+               "]";
     }
 
     private string BuildSampleDataPrompt(string tableName, string columnName, List<object?> sampleData)
