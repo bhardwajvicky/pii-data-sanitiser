@@ -1,0 +1,118 @@
+{
+  "metadata": {
+    "configVersion": "2.1",
+    "description": "Development Environment Configuration",
+    "createdBy": "DevelopmentTeam",
+    "createdDate": "2024-07-13T10:00:00Z"
+  },
+  "global": {
+    "connectionString": "Server=localhost;Database=FleetDevDB;Trusted_Connection=true;",
+    "globalSeed": "FleetDevSeed2024",
+    "batchSize": 1000,
+    "parallelThreads": 2,
+    "maxCacheSize": 50000,
+    "dryRun": true,
+    "persistMappings": true,
+    "enableValueCaching": true,
+    "commandTimeoutSeconds": 120,
+    "mappingCacheDirectory": "mappings/development"
+  },
+  "dataTypes": {
+    "DevDriverName": {
+      "baseType": "DriverName",
+      "customSeed": "DevDriverSeed2024",
+      "formatting": {
+        "addPrefix": "DEV_"
+      }
+    },
+    "DevVehicleReg": {
+      "baseType": "VehicleRegistration",
+      "customSeed": "DevVehicleSeed2024",
+      "formatting": {
+        "addPrefix": "DEV"
+      }
+    },
+    "DevEmail": {
+      "baseType": "ContactEmail",
+      "customSeed": "DevEmailSeed2024",
+      "validation": {
+        "regex": "^[a-zA-Z0-9._%+-]+@dev\\.(com\\.au|net\\.au)$"
+      }
+    }
+  },
+  "referentialIntegrity": {
+    "enabled": false
+  },
+  "tables": [
+    {
+      "tableName": "Drivers",
+      "priority": 1,
+      "conditions": {
+        "whereClause": "DriverID <= 100",
+        "maxRows": 100
+      },
+      "primaryKey": ["DriverID"],
+      "columns": [
+        {
+          "columnName": "DriverName",
+          "dataType": "DevDriverName",
+          "enabled": true,
+          "fallback": {
+            "onError": "useDefault",
+            "defaultValue": "DEV_UNKNOWN_DRIVER"
+          }
+        },
+        {
+          "columnName": "LicenseNumber",
+          "dataType": "DriverLicenseNumber",
+          "enabled": true
+        },
+        {
+          "columnName": "ContactEmail",
+          "dataType": "DevEmail",
+          "enabled": true,
+          "conditions": {
+            "onlyIfNotNull": true
+          }
+        },
+        {
+          "columnName": "MobilePhone",
+          "dataType": "DriverPhone",
+          "enabled": false
+        }
+      ]
+    },
+    {
+      "tableName": "Vehicles",
+      "priority": 2,
+      "conditions": {
+        "whereClause": "VehicleID <= 50",
+        "maxRows": 50
+      },
+      "primaryKey": ["VehicleID"],
+      "columns": [
+        {
+          "columnName": "RegistrationNumber",
+          "dataType": "DevVehicleReg",
+          "enabled": true
+        },
+        {
+          "columnName": "VINNumber",
+          "dataType": "VINNumber",
+          "enabled": true
+        },
+        {
+          "columnName": "MakeModel",
+          "dataType": "VehicleMakeModel",
+          "enabled": true
+        }
+      ]
+    }
+  ],
+  "postProcessing": {
+    "generateReport": true,
+    "reportPath": "reports/dev-obfuscation-{timestamp}.json",
+    "validateResults": false,
+    "backupMappings": true
+  }
+}

@@ -1,0 +1,395 @@
+# Practical Usage Scenarios and Configuration Examples
+
+## 1. JSON Configuration Structure Overview
+
+The JSON configuration system provides **complete external control** over data obfuscation without code changes:
+
+### **Key Benefits:**
+✅ **No Code Changes**: Modify obfuscation rules without recompiling  
+✅ **Environment Specific**: Different configs for Dev/Test/Prod  
+✅ **Flexible Data Types**: Define custom data types with inheritance  
+✅ **Referential Integrity**: Maintain relationships across tables  
+✅ **Conditional Processing**: Process only specific rows/conditions  
+
+## 2. Configuration File Usage Examples
+
+### **Basic Production Run:**
+```bash
+# Full production obfuscation
+DataObfuscation.exe production-config.json
+
+# Test run (dry run mode)
+DataObfuscation.exe test-config.json
+
+# Specific environment
+DataObfuscation.exe configs/staging-environment.json
+```
+
+### **Configuration File Management:**
+```
+configs/
+├── production-config.json      # Full production setup
+├── test-config.json           # Limited test data
+├── development-config.json    # Development environment
+├── emergency-config.json      # Critical data only
+└── schemas/
+    └── obfuscation-schema.json # JSON schema validation
+```
+
+## 3. Sample Configuration Scenarios
+
+### **Scenario 1: New Customer Database (Simple)**
+```json
+{
+  "global": {
+    "connectionString": "Server=localhost;Database=NewCustomerDB;Trusted_Connection=true;",
+    "globalSeed": "NewCustomerSeed2024",
+    "batchSize": 5000,
+    "dryRun": true
+  },
+  "tables": [
+    {
+      "tableName": "Users",
+      "columns": [
+        {"columnName": "FirstName", "dataType": "AustralianFirstName"},
+        {"columnName": "LastName", "dataType": "AustralianLastName"},
+        {"columnName": "Email", "dataType": "AustralianEmail"}
+      ]
+    }
+  ]
+}
+```
+
+### **Scenario 2: Large Enterprise Database (Complex)**
+```json
+{
+  "global": {
+    "connectionString": "Server=prod-db;Database=EnterpriseDB;Trusted_Connection=true;",
+    "globalSeed": "EnterpriseProdSeed2024_v2",
+    "batchSize": 25000,
+    "parallelThreads": 16,
+    "maxCacheSize": 5000000,
+    "dryRun": false
+  },
+  "dataTypes": {
+    "ExecutiveEmail": {
+      "baseType": "AustralianEmail",
+      "customSeed": "ExecutiveSeed2024",
+      "validation": {"regex": "^[a-zA-Z0-9._%+-]+@company\\.com$"}
+    },
+    "HighSecurityTFN": {
+      "baseType": "TFN", 
+      "customSeed": "HighSecTFN2024",
+      "preserveLength": true
+    }
+  },
+  "referentialIntegrity": {
+    "enabled": true,
+    "relationships": [
+      {
+        "name": "CustomerConsistency",
+        "primaryTable": "Customers", 
+        "primaryColumn": "Email",
+        "relatedMappings": [
+          {"table": "Orders", "column": "CustomerEmail", "relationship": "exact"},
+          {"table": "Invoices", "column": "BillToEmail", "relationship": "exact"}
+        ]
+      }
+    ]
+  },
+  "tables": [
+    {
+      "tableName": "Customers",
+      "priority": 1,
+      "conditions": {"whereClause": "IsActive = 1 AND CreatedDate >= '2020-01-01'"},
+      "customBatchSize": 10000,
+      "primaryKey": ["CustomerID"],
+      "columns": [
+        {"columnName": "FirstName", "dataType": "AustralianFirstName"},
+        {"columnName": "Email", "dataType": "ExecutiveEmail"}
+      ]
+    }
+  ]
+}
+```
+
+### **Scenario 3: Development/Testing (Subset)**
+```json
+{
+  "global": {
+    "connectionString": "Server=dev-db;Database=TestDB;Trusted_Connection=true;",
+    "globalSeed": "DevTestSeed2024",
+    "batchSize": 1000,
+    "dryRun": true
+  },
+  "tables": [
+    {
+      "tableName": "Customers",
+      "conditions": {"maxRows": 1000},
+      "columns": [
+        {"columnName": "FirstName", "dataType": "AustralianFirstName"},
+        {"columnName": "Email", "dataType": "AustralianEmail"}
+      ]
+    }
+  ]
+}
+```
+
+## 4. JSON to Code Mapping Flow
+
+### **Configuration Loading Process:**
+```
+1. JSON File → ConfigurationParser.LoadConfigurationAsync()
+2. JSON Validation → FluentValidation rules
+3. Configuration Model → ObfuscationConfiguration object
+4. Execution Plan → ExecutableObfuscationPlan
+5. Runtime Execution → ConfigurableDataObfuscationEngine
+```
+
+### **Data Type Mapping:**
+```csharp
+// JSON Configuration:
+"dataType": "AustralianFirstName"
+
+// Maps to Code:
+provider.GetFirstName(originalValue, customSeed)
+
+// With Custom Type:
+"dataTypes": {
+  "ExecutiveFirstName": {
+    "baseType": "AustralianFirstName",
+    "customSeed": "ExecSeed2024"
+  }
+}
+
+// Maps to Code:
+provider.GetFirstName(originalValue, "ExecSeed2024")
+```
+
+### **Condition Mapping:**
+```json
+// JSON Configuration:
+"conditions": {
+  "whereClause": "IsActive = 1",
+  "onlyIfNotNull": true,
+  "maxRows": 10000
+}
+```
+
+```csharp
+// Generated SQL:
+SELECT * FROM TableName 
+WHERE IsActive = 1 
+ORDER BY PrimaryKey
+OFFSET 0 ROWS FETCH NEXT 10000 ROWS ONLY
+
+// Generated Condition Check:
+if (value != null && shouldProcess) {
+    // Process the value
+}
+```
+
+## 5. Advanced Configuration Features
+
+### **Custom Data Types with Inheritance:**
+```json
+{
+  "dataTypes": {
+    "BaseEmployee": {
+      "baseType": "AustralianFullName",
+      "customSeed": "EmployeeSeed2024",
+      "preserveLength": true
+    },
+    "ExecutiveEmployee": {
+      "baseType": "AustralianFullName", 
+      "customSeed": "ExecutiveSeed2024",
+      "preserveLength": true,
+      "validation": {"minLength": 10}
+    },
+    "ContractorEmployee": {
+      "baseType": "AustralianFullName",
+      "customSeed": "ContractorSeed2024",
+      "formatting": {"addPrefix": "CONTRACTOR_"}
+    }
+  }
+}
+```
+
+### **Conditional Processing:**
+```json
+{
+  "columns": [
+    {
+      "columnName": "SensitiveData",
+      "dataType": "AustralianFirstName",
+      "conditions": {
+        "conditionalExpression": "DataClassification = 'SENSITIVE'",
+        "onlyIfNotNull": true
+      },
+      "fallback": {
+        "onError": "useOriginal",
+        "defaultValue": "REDACTED"
+      }
+    }
+  ]
+}
+```
+
+### **Validation and Transformation:**
+```json
+{
+  "columnName": "PhoneNumber",
+  "dataType": "CustomerPhoneAU",
+  "transformation": {
+    "preProcess": ["trim", "removeSpaces"],
+    "postProcess": ["trim"]
+  },
+  "validation": {
+    "regex": "^(\\+61|0)[2-478]\\d{8}$",
+    "minLength": 10,
+    "maxLength": 15
+  }
+}
+```
+
+## 6. Configuration Management Best Practices
+
+### **Environment-Specific Configurations:**
+```bash
+# Directory structure
+environments/
+├── production.json     # Full production settings
+├── staging.json       # Staging environment
+├── development.json   # Dev environment with limits
+└── testing.json       # Unit test configurations
+
+# Usage
+DataObfuscation.exe environments/production.json
+```
+
+### **Configuration Validation:**
+```bash
+# Pre-deployment validation
+DataObfuscation.exe production.json --validate-only
+DataObfuscation.exe production.json --dry-run
+```
+
+### **Version Control Integration:**
+```json
+{
+  "metadata": {
+    "configVersion": "2.1",
+    "description": "Q3 2024 Production Obfuscation",
+    "createdBy": "DataPrivacyTeam",
+    "createdDate": "2024-07-13T10:00:00Z",
+    "lastModified": "2024-07-13T12:30:00Z"
+  }
+}
+```
+
+## 7. Error Handling and Fallbacks
+
+### **Graceful Error Recovery:**
+```json
+{
+  "columns": [
+    {
+      "columnName": "CriticalData",
+      "dataType": "AustralianEmail",
+      "fallback": {
+        "onError": "useDefault",
+        "defaultValue": "privacy@company.com.au"
+      }
+    },
+    {
+      "columnName": "OptionalData", 
+      "dataType": "AustralianPhone",
+      "fallback": {
+        "onError": "skip"
+      }
+    }
+  ]
+}
+```
+
+### **Validation Failures:**
+```json
+{
+  "validation": {
+    "regex": "^[A-Z][a-z]+$",
+    "minLength": 2,
+    "maxLength": 50
+  },
+  "fallback": {
+    "onError": "useOriginal"
+  }
+}
+```
+
+## 8. Performance Tuning via Configuration
+
+### **Table-Specific Optimization:**
+```json
+{
+  "tables": [
+    {
+      "tableName": "LargeCustomerTable",
+      "priority": 1,
+      "customBatchSize": 50000,
+      "conditions": {"whereClause": "ProcessingStatus = 'READY'"}
+    },
+    {
+      "tableName": "SmallLookupTable", 
+      "priority": 5,
+      "customBatchSize": 1000
+    }
+  ]
+}
+```
+
+### **Memory and Caching Configuration:**
+```json
+{
+  "global": {
+    "batchSize": 25000,
+    "parallelThreads": 16,
+    "maxCacheSize": 5000000,
+    "enableValueCaching": true,
+    "persistMappings": true
+  }
+}
+```
+
+## 9. Deployment and Operations
+
+### **Deployment Checklist:**
+```bash
+# 1. Validate configuration
+DataObfuscation.exe config.json --validate
+
+# 2. Test with dry run
+DataObfuscation.exe config.json --dry-run
+
+# 3. Backup database
+sqlcmd -S server -Q "BACKUP DATABASE MyDB TO DISK='backup.bak'"
+
+# 4. Execute obfuscation
+DataObfuscation.exe config.json
+
+# 5. Verify results
+DataObfuscation.exe config.json --verify-mappings
+```
+
+### **Monitoring and Logging:**
+```json
+{
+  "postProcessing": {
+    "generateReport": true,
+    "reportPath": "reports/obfuscation-{timestamp}.json",
+    "validateResults": true,
+    "backupMappings": true
+  }
+}
+```
+
+This comprehensive configuration system provides complete flexibility for managing data obfuscation across different environments, datasets, and requirements without any code changes.

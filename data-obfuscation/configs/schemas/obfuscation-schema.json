@@ -1,0 +1,345 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Data Obfuscation Configuration Schema",
+  "description": "JSON schema for validating data obfuscation configuration files",
+  "type": "object",
+  "required": ["global", "tables"],
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "configVersion": {"type": "string"},
+        "description": {"type": "string"},
+        "createdBy": {"type": "string"},
+        "createdDate": {"type": "string", "format": "date-time"},
+        "lastModified": {"type": "string", "format": "date-time"}
+      }
+    },
+    "global": {
+      "type": "object",
+      "required": ["connectionString", "globalSeed"],
+      "properties": {
+        "connectionString": {
+          "type": "string",
+          "minLength": 1,
+          "description": "SQL Server connection string"
+        },
+        "globalSeed": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Master seed for deterministic generation"
+        },
+        "batchSize": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100000,
+          "default": 15000,
+          "description": "Number of rows per batch"
+        },
+        "parallelThreads": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 32,
+          "description": "Number of parallel processing threads"
+        },
+        "maxCacheSize": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1000000,
+          "description": "Maximum number of cached mappings"
+        },
+        "dryRun": {
+          "type": "boolean",
+          "default": false,
+          "description": "Run without modifying data"
+        },
+        "persistMappings": {
+          "type": "boolean",
+          "default": true,
+          "description": "Save mappings to file system"
+        },
+        "enableValueCaching": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable in-memory value caching"
+        },
+        "commandTimeoutSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3600,
+          "default": 600,
+          "description": "Database command timeout in seconds"
+        },
+        "mappingCacheDirectory": {
+          "type": "string",
+          "description": "Directory for persisting mappings"
+        }
+      }
+    },
+    "dataTypes": {
+      "type": "object",
+      "patternProperties": {
+        "^[a-zA-Z][a-zA-Z0-9_]*$": {
+          "type": "object",
+          "required": ["baseType"],
+          "properties": {
+            "baseType": {
+              "type": "string",
+              "enum": [
+                "DriverName", "AustralianFullName", "DriverLicenseNumber",
+                "ContactEmail", "AustralianEmail", "DriverPhone", "AustralianPhone",
+                "VehicleRegistration", "VINNumber", "VehicleMakeModel", "EngineNumber",
+                "OperatorName", "AustralianCompany", "BusinessABN", "BusinessACN",
+                "Address", "AustralianAddress", "GPSCoordinate", "RouteCode", "DepotLocation"
+              ],
+              "description": "Base data type for generation"
+            },
+            "customSeed": {
+              "type": "string",
+              "description": "Custom seed for this data type"
+            },
+            "preserveLength": {
+              "type": "boolean",
+              "default": false,
+              "description": "Maintain original value length"
+            },
+            "validation": {
+              "type": "object",
+              "properties": {
+                "regex": {"type": "string"},
+                "minLength": {"type": "integer", "minimum": 0},
+                "maxLength": {"type": "integer", "minimum": 1},
+                "allowedValues": {"type": "array", "items": {"type": "string"}}
+              }
+            },
+            "formatting": {
+              "type": "object",
+              "properties": {
+                "addPrefix": {"type": "string"},
+                "addSuffix": {"type": "string"},
+                "pattern": {"type": "string"}
+              }
+            },
+            "transformation": {
+              "type": "object",
+              "properties": {
+                "preProcess": {
+                  "type": "array",
+                  "items": {"type": "string", "enum": ["trim", "removeSpaces", "toLowerCase", "toUpperCase"]}
+                },
+                "postProcess": {
+                  "type": "array",
+                  "items": {"type": "string", "enum": ["trim", "removeSpaces", "toLowerCase", "toUpperCase"]}
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "referentialIntegrity": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable referential integrity management"
+        },
+        "relationships": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "primaryTable", "primaryColumn", "relatedMappings"],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Relationship identifier"
+              },
+              "primaryTable": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Primary table name"
+              },
+              "primaryColumn": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Primary column name"
+              },
+              "relatedMappings": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "required": ["table", "column"],
+                  "properties": {
+                    "table": {"type": "string", "minLength": 1},
+                    "column": {"type": "string", "minLength": 1},
+                    "relationship": {
+                      "type": "string",
+                      "enum": ["exact", "derived"],
+                      "default": "exact"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "tables": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["tableName", "columns"],
+        "properties": {
+          "tableName": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Database table name"
+          },
+          "priority": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 10,
+            "description": "Processing priority (lower = earlier)"
+          },
+          "conditions": {
+            "type": "object",
+            "properties": {
+              "whereClause": {
+                "type": "string",
+                "description": "SQL WHERE clause for filtering rows"
+              },
+              "maxRows": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "Maximum number of rows to process"
+              },
+              "onlyIfNotNull": {
+                "type": "boolean",
+                "default": false,
+                "description": "Only process non-null values"
+              },
+              "conditionalExpression": {
+                "type": "string",
+                "description": "Additional conditional logic"
+              }
+            }
+          },
+          "customBatchSize": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000,
+            "description": "Table-specific batch size override"
+          },
+          "primaryKey": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1},
+            "description": "Primary key column names"
+          },
+          "columns": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["columnName", "dataType"],
+              "properties": {
+                "columnName": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Database column name"
+                },
+                "dataType": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Data type for obfuscation"
+                },
+                "enabled": {
+                  "type": "boolean",
+                  "default": true,
+                  "description": "Enable obfuscation for this column"
+                },
+                "preserveLength": {
+                  "type": "boolean",
+                  "default": false,
+                  "description": "Maintain original value length"
+                },
+                "conditions": {
+                  "type": "object",
+                  "properties": {
+                    "onlyIfNotNull": {"type": "boolean", "default": false},
+                    "conditionalExpression": {"type": "string"}
+                  }
+                },
+                "fallback": {
+                  "type": "object",
+                  "properties": {
+                    "onError": {
+                      "type": "string",
+                      "enum": ["useOriginal", "useDefault", "skip"],
+                      "default": "useOriginal",
+                      "description": "Error handling strategy"
+                    },
+                    "defaultValue": {
+                      "type": "string",
+                      "description": "Default value when onError is 'useDefault'"
+                    }
+                  }
+                },
+                "validation": {
+                  "type": "object",
+                  "properties": {
+                    "regex": {"type": "string"},
+                    "minLength": {"type": "integer", "minimum": 0},
+                    "maxLength": {"type": "integer", "minimum": 1}
+                  }
+                },
+                "transformation": {
+                  "type": "object",
+                  "properties": {
+                    "preProcess": {
+                      "type": "array",
+                      "items": {"type": "string", "enum": ["trim", "removeSpaces", "toLowerCase", "toUpperCase"]}
+                    },
+                    "postProcess": {
+                      "type": "array",
+                      "items": {"type": "string", "enum": ["trim", "removeSpaces", "toLowerCase", "toUpperCase"]}
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "postProcessing": {
+      "type": "object",
+      "properties": {
+        "generateReport": {
+          "type": "boolean",
+          "default": true,
+          "description": "Generate processing report"
+        },
+        "reportPath": {
+          "type": "string",
+          "default": "reports/obfuscation-{timestamp}.json",
+          "description": "Report file path (supports {timestamp} placeholder)"
+        },
+        "validateResults": {
+          "type": "boolean",
+          "default": true,
+          "description": "Validate results after processing"
+        },
+        "backupMappings": {
+          "type": "boolean",
+          "default": true,
+          "description": "Backup mapping files"
+        }
+      }
+    }
+  }
+}

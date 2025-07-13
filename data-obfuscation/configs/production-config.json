@@ -1,0 +1,311 @@
+{
+  "metadata": {
+    "configVersion": "2.1",
+    "description": "Production Fleet Management Database Obfuscation",
+    "createdBy": "DataPrivacyTeam",
+    "createdDate": "2024-07-13T10:00:00Z",
+    "lastModified": "2024-07-13T12:30:00Z"
+  },
+  "global": {
+    "connectionString": "Server=prod-fleet-db;Database=FleetManagementDB;Trusted_Connection=true;",
+    "globalSeed": "FleetProdSeed2024_v3",
+    "batchSize": 25000,
+    "parallelThreads": 16,
+    "maxCacheSize": 5000000,
+    "dryRun": false,
+    "persistMappings": true,
+    "enableValueCaching": true,
+    "commandTimeoutSeconds": 600,
+    "mappingCacheDirectory": "mappings/production"
+  },
+  "dataTypes": {
+    "ExecutiveDriverName": {
+      "baseType": "DriverName",
+      "customSeed": "ExecutiveDriverSeed2024",
+      "preserveLength": true
+    },
+    "SeniorOperatorName": {
+      "baseType": "OperatorName",
+      "customSeed": "SeniorOperatorSeed2024",
+      "validation": {
+        "minLength": 10,
+        "maxLength": 100
+      }
+    },
+    "CommercialVehicleReg": {
+      "baseType": "VehicleRegistration",
+      "customSeed": "CommercialVehicleSeed2024"
+    },
+    "HighValueEmail": {
+      "baseType": "ContactEmail",
+      "customSeed": "HighValueEmailSeed2024",
+      "validation": {
+        "regex": "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
+      }
+    }
+  },
+  "referentialIntegrity": {
+    "enabled": true,
+    "relationships": [
+      {
+        "name": "DriverConsistency",
+        "primaryTable": "Drivers",
+        "primaryColumn": "DriverName",
+        "relatedMappings": [
+          {"table": "VehicleAssignments", "column": "DriverName", "relationship": "exact"},
+          {"table": "IncidentReports", "column": "DriverName", "relationship": "exact"},
+          {"table": "TrainingRecords", "column": "DriverName", "relationship": "exact"}
+        ]
+      },
+      {
+        "name": "VehicleConsistency",
+        "primaryTable": "Vehicles",
+        "primaryColumn": "RegistrationNumber",
+        "relatedMappings": [
+          {"table": "MaintenanceRecords", "column": "VehicleRegistration", "relationship": "exact"},
+          {"table": "InsurancePolicies", "column": "VehicleRegistration", "relationship": "exact"},
+          {"table": "FuelRecords", "column": "VehicleRegistration", "relationship": "exact"}
+        ]
+      },
+      {
+        "name": "OperatorConsistency",
+        "primaryTable": "FleetOperators",
+        "primaryColumn": "OperatorName",
+        "relatedMappings": [
+          {"table": "Contracts", "column": "OperatorName", "relationship": "exact"},
+          {"table": "ComplianceRecords", "column": "OperatorName", "relationship": "exact"}
+        ]
+      }
+    ]
+  },
+  "tables": [
+    {
+      "tableName": "Drivers",
+      "priority": 1,
+      "conditions": {
+        "whereClause": "IsActive = 1 AND EmploymentStatus = 'CURRENT'",
+        "maxRows": 100000
+      },
+      "customBatchSize": 15000,
+      "primaryKey": ["DriverID"],
+      "columns": [
+        {
+          "columnName": "DriverName",
+          "dataType": "ExecutiveDriverName",
+          "enabled": true,
+          "preserveLength": true,
+          "fallback": {
+            "onError": "useDefault",
+            "defaultValue": "REDACTED_DRIVER"
+          }
+        },
+        {
+          "columnName": "LicenseNumber",
+          "dataType": "DriverLicenseNumber",
+          "enabled": true,
+          "fallback": {
+            "onError": "useOriginal"
+          }
+        },
+        {
+          "columnName": "ContactEmail",
+          "dataType": "HighValueEmail",
+          "enabled": true,
+          "conditions": {
+            "onlyIfNotNull": true
+          }
+        },
+        {
+          "columnName": "MobilePhone",
+          "dataType": "DriverPhone",
+          "enabled": true
+        },
+        {
+          "columnName": "HomeAddress",
+          "dataType": "Address",
+          "enabled": true,
+          "preserveLength": false
+        }
+      ]
+    },
+    {
+      "tableName": "Vehicles",
+      "priority": 2,
+      "conditions": {
+        "whereClause": "Status IN ('ACTIVE', 'MAINTENANCE') AND VehicleType <> 'DEMO'"
+      },
+      "customBatchSize": 20000,
+      "primaryKey": ["VehicleID"],
+      "columns": [
+        {
+          "columnName": "RegistrationNumber",
+          "dataType": "CommercialVehicleReg",
+          "enabled": true,
+          "preserveLength": true
+        },
+        {
+          "columnName": "VINNumber",
+          "dataType": "VINNumber",
+          "enabled": true
+        },
+        {
+          "columnName": "MakeModel",
+          "dataType": "VehicleMakeModel",
+          "enabled": true
+        },
+        {
+          "columnName": "EngineNumber",
+          "dataType": "EngineNumber",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "tableName": "FleetOperators",
+      "priority": 3,
+      "primaryKey": ["OperatorID"],
+      "columns": [
+        {
+          "columnName": "OperatorName",
+          "dataType": "SeniorOperatorName",
+          "enabled": true
+        },
+        {
+          "columnName": "BusinessABN",
+          "dataType": "BusinessABN",
+          "enabled": true
+        },
+        {
+          "columnName": "BusinessACN",
+          "dataType": "BusinessACN",
+          "enabled": true
+        },
+        {
+          "columnName": "BusinessAddress",
+          "dataType": "Address",
+          "enabled": true
+        },
+        {
+          "columnName": "ContactEmail",
+          "dataType": "ContactEmail",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "tableName": "VehicleAssignments",
+      "priority": 4,
+      "primaryKey": ["AssignmentID"],
+      "columns": [
+        {
+          "columnName": "DriverName",
+          "dataType": "ExecutiveDriverName",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "tableName": "RouteManagement",
+      "priority": 5,
+      "primaryKey": ["RouteID"],
+      "columns": [
+        {
+          "columnName": "RouteCode",
+          "dataType": "RouteCode",
+          "enabled": true
+        },
+        {
+          "columnName": "StartLocation",
+          "dataType": "GPSCoordinate",
+          "enabled": true
+        },
+        {
+          "columnName": "EndLocation",
+          "dataType": "GPSCoordinate",
+          "enabled": true
+        },
+        {
+          "columnName": "DepotLocation",
+          "dataType": "DepotLocation",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "tableName": "MaintenanceRecords",
+      "priority": 6,
+      "primaryKey": ["MaintenanceID"],
+      "columns": [
+        {
+          "columnName": "VehicleRegistration",
+          "dataType": "CommercialVehicleReg",
+          "enabled": true
+        },
+        {
+          "columnName": "ServiceLocation",
+          "dataType": "Address",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "tableName": "IncidentReports",
+      "priority": 7,
+      "primaryKey": ["IncidentID"],
+      "columns": [
+        {
+          "columnName": "DriverName",
+          "dataType": "ExecutiveDriverName",
+          "enabled": true
+        },
+        {
+          "columnName": "IncidentLocation",
+          "dataType": "GPSCoordinate",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "tableName": "InsurancePolicies",
+      "priority": 8,
+      "primaryKey": ["PolicyID"],
+      "columns": [
+        {
+          "columnName": "VehicleRegistration",
+          "dataType": "CommercialVehicleReg",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "tableName": "Contracts",
+      "priority": 9,
+      "primaryKey": ["ContractID"],
+      "columns": [
+        {
+          "columnName": "OperatorName",
+          "dataType": "SeniorOperatorName",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "tableName": "ComplianceRecords",
+      "priority": 10,
+      "primaryKey": ["ComplianceID"],
+      "columns": [
+        {
+          "columnName": "OperatorName",
+          "dataType": "SeniorOperatorName",
+          "enabled": true
+        }
+      ]
+    }
+  ],
+  "postProcessing": {
+    "generateReport": true,
+    "reportPath": "reports/production-obfuscation-{timestamp}.json",
+    "validateResults": true,
+    "backupMappings": true
+  }
+}

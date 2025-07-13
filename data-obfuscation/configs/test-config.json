@@ -1,0 +1,115 @@
+{
+  "metadata": {
+    "configVersion": "2.1",
+    "description": "Test Configuration for Fleet Management Database Obfuscation",
+    "createdBy": "DevelopmentTeam",
+    "createdDate": "2024-07-13T10:00:00Z"
+  },
+  "global": {
+    "connectionString": "Server=test-db;Database=FleetTestDB;Trusted_Connection=true;",
+    "globalSeed": "FleetTestSeed2024",
+    "batchSize": 5000,
+    "parallelThreads": 4,
+    "maxCacheSize": 100000,
+    "dryRun": true,
+    "persistMappings": false,
+    "enableValueCaching": true,
+    "commandTimeoutSeconds": 300,
+    "mappingCacheDirectory": "mappings/test"
+  },
+  "dataTypes": {
+    "TestDriverName": {
+      "baseType": "DriverName",
+      "customSeed": "TestDriverSeed2024"
+    },
+    "TestVehicleReg": {
+      "baseType": "VehicleRegistration", 
+      "customSeed": "TestVehicleSeed2024"
+    }
+  },
+  "referentialIntegrity": {
+    "enabled": true,
+    "relationships": [
+      {
+        "name": "TestDriverConsistency",
+        "primaryTable": "Drivers",
+        "primaryColumn": "DriverName",
+        "relatedMappings": [
+          {"table": "VehicleAssignments", "column": "DriverName", "relationship": "exact"}
+        ]
+      }
+    ]
+  },
+  "tables": [
+    {
+      "tableName": "Drivers",
+      "priority": 1,
+      "conditions": {
+        "maxRows": 1000
+      },
+      "primaryKey": ["DriverID"],
+      "columns": [
+        {
+          "columnName": "DriverName",
+          "dataType": "TestDriverName",
+          "enabled": true,
+          "fallback": {
+            "onError": "useDefault",
+            "defaultValue": "TEST_DRIVER"
+          }
+        },
+        {
+          "columnName": "LicenseNumber",
+          "dataType": "DriverLicenseNumber",
+          "enabled": true
+        },
+        {
+          "columnName": "ContactEmail",
+          "dataType": "ContactEmail",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "tableName": "Vehicles",
+      "priority": 2,
+      "conditions": {
+        "maxRows": 500
+      },
+      "primaryKey": ["VehicleID"],
+      "columns": [
+        {
+          "columnName": "RegistrationNumber",
+          "dataType": "TestVehicleReg",
+          "enabled": true
+        },
+        {
+          "columnName": "VINNumber",
+          "dataType": "VINNumber",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "tableName": "VehicleAssignments",
+      "priority": 3,
+      "conditions": {
+        "maxRows": 200
+      },
+      "primaryKey": ["AssignmentID"],
+      "columns": [
+        {
+          "columnName": "DriverName",
+          "dataType": "TestDriverName",
+          "enabled": true
+        }
+      ]
+    }
+  ],
+  "postProcessing": {
+    "generateReport": true,
+    "reportPath": "reports/test-obfuscation-{timestamp}.json",
+    "validateResults": false,
+    "backupMappings": false
+  }
+}
