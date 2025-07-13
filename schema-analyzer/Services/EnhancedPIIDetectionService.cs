@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Data.SqlClient;
 using SchemaAnalyzer.Models;
+using DataObfuscation.Common.DataTypes;
 
 namespace SchemaAnalyzer.Services;
 
@@ -233,24 +234,43 @@ public class EnhancedPIIDetectionService : IEnhancedPIIDetectionService
 
     private static bool IsValidPIITypeForSqlType(string piiType, string sqlDataType)
     {
+        // First validate that the PII type is supported
+        if (!SupportedDataTypes.IsSupported(piiType))
+        {
+            return false;
+        }
+
         var sqlTypeLower = sqlDataType.ToLower();
 
         return piiType switch
         {
-            "FirstName" or "LastName" or "DriverName" or "Address" or "ContactEmail" or "OperatorName" or "RouteCode" => 
+            // String-based data types
+            SupportedDataTypes.FirstName or SupportedDataTypes.LastName or SupportedDataTypes.FullName or 
+            SupportedDataTypes.Email or SupportedDataTypes.Phone or
+            SupportedDataTypes.FullAddress or SupportedDataTypes.AddressLine1 or SupportedDataTypes.AddressLine2 or
+            SupportedDataTypes.City or SupportedDataTypes.Suburb or SupportedDataTypes.State or SupportedDataTypes.StateAbbr or
+            SupportedDataTypes.PostCode or SupportedDataTypes.ZipCode or SupportedDataTypes.Country or
+            SupportedDataTypes.CompanyName or SupportedDataTypes.LicenseNumber or
+            SupportedDataTypes.VehicleRegistration or SupportedDataTypes.VINNumber or SupportedDataTypes.VehicleMakeModel or
+            SupportedDataTypes.RouteCode or SupportedDataTypes.DepotLocation or
+            SupportedDataTypes.NINO or SupportedDataTypes.NationalInsuranceNumber or SupportedDataTypes.SortCode or
+            SupportedDataTypes.UKPostcode or SupportedDataTypes.Address => 
                 sqlTypeLower.Contains("varchar") || sqlTypeLower.Contains("char") || sqlTypeLower.Contains("text"),
             
-            "DriverPhone" or "DriverLicenseNumber" or "BusinessABN" or "VehicleRegistration" or "VINNumber" => 
+            // Credit card numbers - typically stored as varchar
+            SupportedDataTypes.CreditCard => 
                 sqlTypeLower.Contains("varchar") || sqlTypeLower.Contains("char"),
             
-            "GPSCoordinate" => 
+            // Business identifiers - typically varchar/char
+            SupportedDataTypes.BusinessABN or SupportedDataTypes.BusinessACN or SupportedDataTypes.EngineNumber => 
+                sqlTypeLower.Contains("varchar") || sqlTypeLower.Contains("char"),
+            
+            // GPS coordinates - can be various numeric or text formats
+            SupportedDataTypes.GPSCoordinate => 
                 sqlTypeLower.Contains("varchar") || sqlTypeLower.Contains("decimal") || 
-                sqlTypeLower.Contains("float") || sqlTypeLower.Contains("geography"),
+                sqlTypeLower.Contains("float") || sqlTypeLower.Contains("geography") || sqlTypeLower.Contains("geometry"),
             
-            "VehicleMakeModel" => 
-                sqlTypeLower.Contains("varchar") || sqlTypeLower.Contains("char"),
-            
-            _ => true // Allow unknown types
+            _ => false // Reject unknown types
         };
     }
 

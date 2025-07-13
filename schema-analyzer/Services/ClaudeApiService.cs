@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using DataObfuscation.Common.DataTypes;
 using System.Text.Json;
 using System.Text;
 using SchemaAnalyzer.Models;
@@ -78,43 +79,69 @@ public class ClaudeApiService : IClaudeApiService
 
     private string BuildSchemaPIIPrompt(string schemaDescription)
     {
+        // Build comprehensive data type list from common library
+        var dataTypeDescriptions = new[]
+        {
+            $"- {SupportedDataTypes.FirstName}: First names, given names only (NOT full names)",
+            $"- {SupportedDataTypes.LastName}: Last names, surnames only (NOT full names)",
+            $"- {SupportedDataTypes.FullName}: Full names, display names, complete personal names",
+            $"- {SupportedDataTypes.Email}: Email addresses",
+            $"- {SupportedDataTypes.Phone}: Phone numbers, contact numbers",
+            $"- {SupportedDataTypes.FullAddress}: Complete address (all components combined)",
+            $"- {SupportedDataTypes.AddressLine1}: Primary address line (street number + name)",
+            $"- {SupportedDataTypes.AddressLine2}: Secondary address line (apartment, unit, suite)",
+            $"- {SupportedDataTypes.City}: City/Town names",
+            $"- {SupportedDataTypes.Suburb}: Suburb names (Australian term for City)",
+            $"- {SupportedDataTypes.State}: State/Province/County names",
+            $"- {SupportedDataTypes.StateAbbr}: State abbreviations (NSW, VIC, etc.)",
+            $"- {SupportedDataTypes.PostCode}: Postal codes/ZIP codes",
+            $"- {SupportedDataTypes.Country}: Country names",
+            $"- {SupportedDataTypes.CreditCard}: Credit card numbers",
+            $"- {SupportedDataTypes.NINO}: UK National Insurance Numbers",
+            $"- {SupportedDataTypes.SortCode}: UK bank sort codes",
+            $"- {SupportedDataTypes.LicenseNumber}: License numbers, permit IDs",
+            $"- {SupportedDataTypes.CompanyName}: Company/operator names",
+            $"- {SupportedDataTypes.BusinessABN}: Australian Business Numbers",
+            $"- {SupportedDataTypes.BusinessACN}: Australian Company Numbers",
+            $"- {SupportedDataTypes.VehicleRegistration}: Vehicle registration plates",
+            $"- {SupportedDataTypes.VINNumber}: Vehicle identification numbers",
+            $"- {SupportedDataTypes.VehicleMakeModel}: Vehicle make and model",
+            $"- {SupportedDataTypes.GPSCoordinate}: GPS coordinates, location data",
+            $"- {SupportedDataTypes.RouteCode}: Route identifiers"
+        };
+
         return "You are an expert data privacy consultant analyzing a database schema to identify columns that likely contain Personally Identifiable Information (PII).\n\n" +
                "Please analyze the following database schema and identify columns that likely contain PII data:\n\n" +
                schemaDescription + "\n\n" +
                "For each column you identify as containing PII, classify it into one of these categories:\n" +
-               "- FirstName: First names, given names only (NOT full names)\n" +
-               "- LastName: Last names, surnames only (NOT full names)\n" +
-               "- DriverName: Full names, display names, complete personal names\n" +
-               "- Address: Physical addresses, location data, postal codes\n" +
-               "- DriverPhone: Phone numbers, contact numbers\n" +
-               "- ContactEmail: Email addresses\n" +
-               "- DriverLicenseNumber: License numbers, permit IDs\n" +
-               "- BusinessABN: Business numbers, tax IDs\n" +
-               "- VehicleRegistration: Vehicle plates, registration numbers\n" +
-               "- VINNumber: Vehicle identification numbers\n" +
-               "- GPSCoordinate: Coordinates, location data\n" +
-               "- VehicleMakeModel: Vehicle information\n" +
-               "- OperatorName: Company/operator names\n" +
-               "- RouteCode: Route identifiers\n\n" +
-               "IMPORTANT: Distinguish carefully between:\n" +
-               "- FirstName: Use ONLY for columns named \"FirstName\", \"GivenName\", \"FName\" etc.\n" +
-               "- LastName: Use ONLY for columns named \"LastName\", \"Surname\", \"FamilyName\", \"LName\" etc.\n" +
-               "- DriverName: Use for columns containing full names or general \"Name\" fields\n\n" +
+               string.Join("\n", dataTypeDescriptions) + "\n\n" +
+               "IMPORTANT ADDRESS MAPPING GUIDELINES:\n" +
+               $"- Use {SupportedDataTypes.AddressLine1} for: Address, Address1, StreetAddress, Street\n" +
+               $"- Use {SupportedDataTypes.AddressLine2} for: Address2, Unit, Apt, Suite, Level\n" +
+               $"- Use {SupportedDataTypes.City} for: City, Town, Municipality\n" +
+               $"- Use {SupportedDataTypes.Suburb} for: Suburb (Australian context)\n" +
+               $"- Use {SupportedDataTypes.State} for: State, Province, Region\n" +
+               $"- Use {SupportedDataTypes.PostCode} for: PostCode, ZipCode, PostalCode\n" +
+               $"- Use {SupportedDataTypes.FullAddress} for: FullAddress, CompleteAddress\n\n" +
+               "IMPORTANT NAME MAPPING GUIDELINES:\n" +
+               $"- Use {SupportedDataTypes.FirstName} ONLY for: FirstName, GivenName, FName\n" +
+               $"- Use {SupportedDataTypes.LastName} ONLY for: LastName, Surname, FamilyName, LName\n" +
+               $"- Use {SupportedDataTypes.FullName} for: Name, DisplayName, PersonName, CustomerName\n\n" +
                "Please respond in JSON format with an array of objects containing:\n" +
                "- tableName: Full table name (schema.table)\n" +
                "- columnName: Column name\n" +
-               "- piiType: One of the categories above\n" +
+               "- piiType: One of the categories above (exact match required)\n" +
                "- confidence: Confidence level (0.0-1.0)\n" +
                "- reasoning: Brief explanation why this column contains PII\n\n" +
                "Only include columns where confidence >= 0.7. Focus on actual PII data, not technical IDs or system fields.\n\n" +
                "Example response:\n" +
                "[\n" +
                "  {\n" +
-               "    \"tableName\": \"Person.Person\",\n" +
-               "    \"columnName\": \"FirstName\",\n" +
-               "    \"piiType\": \"FirstName\",\n" +
-               "    \"confidence\": 0.95,\n" +
-               "    \"reasoning\": \"Column clearly contains personal first names\"\n" +
+               $"    \"tableName\": \"Person.Person\",\n" +
+               $"    \"columnName\": \"FirstName\",\n" +
+               $"    \"piiType\": \"{SupportedDataTypes.FirstName}\",\n" +
+               $"    \"confidence\": 0.95,\n" +
+               $"    \"reasoning\": \"Column clearly contains personal first names\"\n" +
                "  }\n" +
                "]";
     }
