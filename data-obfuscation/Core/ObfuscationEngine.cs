@@ -292,24 +292,25 @@ public class ObfuscationEngine : IObfuscationEngine
 
         var obfuscatedValue = dataTypeToMatch switch
         {
-            "DriverName" or "AustralianFullName" => _dataProvider.GetDriverName(originalValue, customSeed),
             "FirstName" => _dataProvider.GetFirstName(originalValue, customSeed),
             "LastName" => _dataProvider.GetLastName(originalValue, customSeed),
-            "DriverLicenseNumber" => _dataProvider.GetDriverLicenseNumber(originalValue, customSeed),
-            "ContactEmail" or "AustralianEmail" => _dataProvider.GetContactEmail(originalValue, customSeed),
-            "DriverPhone" or "AustralianPhone" => _dataProvider.GetDriverPhone(originalValue, customSeed),
+            "FullName" => _dataProvider.GetDriverName(originalValue, customSeed),
+            "LicenseNumber" => _dataProvider.GetDriverLicenseNumber(originalValue, customSeed),
+            "Email" => _dataProvider.GetContactEmail(originalValue, customSeed),
+            "Phone" => _dataProvider.GetDriverPhone(originalValue, customSeed),
             "VehicleRegistration" => _dataProvider.GetVehicleRegistration(originalValue, customSeed),
             "VINNumber" => _dataProvider.GetVINNumber(originalValue, customSeed),
             "VehicleMakeModel" => _dataProvider.GetVehicleMakeModel(originalValue, customSeed),
             "EngineNumber" => _dataProvider.GetEngineNumber(originalValue, customSeed),
-            "OperatorName" or "AustralianCompany" => _dataProvider.GetOperatorName(originalValue, customSeed),
+            "CompanyName" => _dataProvider.GetOperatorName(originalValue, customSeed),
             "BusinessABN" => _dataProvider.GetBusinessABN(originalValue, customSeed),
             "BusinessACN" => _dataProvider.GetBusinessACN(originalValue, customSeed),
-            "Address" or "AustralianAddress" => _dataProvider.GetAddress(originalValue, customSeed),
+            "Address" => _dataProvider.GetAddress(originalValue, customSeed),
             "GPSCoordinate" => _dataProvider.GetGPSCoordinate(originalValue, customSeed),
             "RouteCode" => _dataProvider.GetRouteCode(originalValue, customSeed),
             "DepotLocation" => _dataProvider.GetDepotLocation(originalValue, customSeed),
-            _ => throw new NotSupportedException($"Data type '{columnConfig.DataType}' is not supported")
+            "CreditCard" => _dataProvider.GetCreditCard(originalValue, customSeed),
+            _ => throw new NotSupportedException($"Data type '{dataTypeToMatch}' is not supported. Supported types: FirstName, LastName, FullName, LicenseNumber, Email, Phone, VehicleRegistration, VINNumber, VehicleMakeModel, EngineNumber, CompanyName, BusinessABN, BusinessACN, Address, GPSCoordinate, RouteCode, DepotLocation, CreditCard")
         };
 
         if (columnConfig.PreserveLength && obfuscatedValue.Length != originalValue.Length)

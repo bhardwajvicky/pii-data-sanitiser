@@ -39,6 +39,7 @@ class Program
             
             using var scope = host.Services.CreateScope();
             var configParser = scope.ServiceProvider.GetRequiredService<IConfigurationParser>();
+            var configValidator = scope.ServiceProvider.GetRequiredService<IConfigurationValidator>();
             var obfuscationEngine = scope.ServiceProvider.GetRequiredService<IObfuscationEngine>();
             var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
 
@@ -46,6 +47,36 @@ class Program
             logger.LogInformation("Configuration file: {ConfigFile}", configFile);
 
             var config = await configParser.LoadConfigurationAsync(configFile);
+            
+            // Always validate configuration
+            var validationResult = configValidator.ValidateConfiguration(config);
+            
+            if (!validationResult.IsValid)
+            {
+                logger.LogError("Configuration validation failed:");
+                foreach (var error in validationResult.Errors)
+                {
+                    logger.LogError("  ❌ {Error}", error);
+                }
+                foreach (var warning in validationResult.Warnings)
+                {
+                    logger.LogWarning("  ⚠️  {Warning}", warning);
+                }
+                return 1;
+            }
+            
+            if (validationResult.Warnings.Any())
+            {
+                logger.LogWarning("Configuration validation passed with warnings:");
+                foreach (var warning in validationResult.Warnings)
+                {
+                    logger.LogWarning("  ⚠️  {Warning}", warning);
+                }
+            }
+            else
+            {
+                logger.LogInformation("Configuration validation passed successfully");
+            }
             
             if (dryRun)
             {
@@ -55,7 +86,7 @@ class Program
 
             if (validateOnly)
             {
-                logger.LogInformation("Configuration validation completed successfully");
+                logger.LogInformation("Configuration validation completed - exiting as requested");
                 return 0;
             }
 
@@ -92,6 +123,7 @@ class Program
             .ConfigureServices((context, services) =>
             {
                 services.AddScoped<IConfigurationParser, ConfigurationParser>();
+                services.AddScoped<IConfigurationValidator, ConfigurationValidator>();
                 services.AddScoped<IObfuscationEngine, ObfuscationEngine>();
                 services.AddScoped<IDeterministicAustralianProvider, DeterministicAustralianProvider>();
                 services.AddScoped<IReferentialIntegrityManager, ReferentialIntegrityManager>();

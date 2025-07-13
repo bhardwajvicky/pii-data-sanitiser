@@ -25,6 +25,7 @@ public interface IDeterministicAustralianProvider
     string GetGPSCoordinate(string originalValue, string? customSeed = null);
     string GetRouteCode(string originalValue, string? customSeed = null);
     string GetDepotLocation(string originalValue, string? customSeed = null);
+    string GetCreditCard(string originalValue, string? customSeed = null);
     
     Dictionary<string, string> GetAllMappings();
     void ClearCache();
@@ -243,6 +244,15 @@ public class DeterministicAustralianProvider : IDeterministicAustralianProvider
             var location = faker.Address.City();
             var state = faker.PickRandom(AustralianStates);
             return $"{type} - {location}, {state}";
+        });
+    }
+
+    public string GetCreditCard(string originalValue, string? customSeed = null)
+    {
+        return GetOrCreateMapping($"CreditCard_{originalValue}", customSeed, () =>
+        {
+            var faker = CreateFaker(originalValue, customSeed);
+            return faker.Finance.CreditCardNumber();
         });
     }
 
