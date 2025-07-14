@@ -78,9 +78,9 @@ public class ObfuscationConfigGenerator : IObfuscationConfigGenerator
             Global = new DataObfuscation.Common.Models.GlobalConfiguration
             {
                 ConnectionString = connectionString,
-                GlobalSeed = $"{piiAnalysis.DatabaseName}Seed{DateTime.UtcNow:yyyyMMdd}",
+                GlobalSeed = "1234",
                 BatchSize = DetermineBatchSize(piiAnalysis),
-                ParallelThreads = Environment.ProcessorCount,
+                ParallelThreads = 4,
                 MaxCacheSize = DetermineCacheSize(piiAnalysis),
                 DryRun = false,
                 PersistMappings = true,
@@ -113,7 +113,7 @@ public class ObfuscationConfigGenerator : IObfuscationConfigGenerator
                 MaxMemoryUsageMB = 4096,
                 BufferSize = 8192,
                 EnableParallelProcessing = true,
-                MaxDegreeOfParallelism = Environment.ProcessorCount,
+                MaxDegreeOfParallelism = 4,
                 OptimizeForThroughput = true,
                 ConnectionPoolSize = 20
             },
@@ -193,6 +193,8 @@ public class ObfuscationConfigGenerator : IObfuscationConfigGenerator
             "OperatorName" => SupportedDataTypes.CompanyName,
             "StoreName" => SupportedDataTypes.CompanyName,
             "VendorName" => SupportedDataTypes.CompanyName,
+            "PostalCode" => SupportedDataTypes.PostCode,
+            "PostCode" => SupportedDataTypes.PostCode,
             _ => originalDataType
         };
     }
@@ -227,7 +229,7 @@ public class ObfuscationConfigGenerator : IObfuscationConfigGenerator
             dataTypes[customTypeName] = new DataObfuscation.Common.Models.CustomDataType
             {
                 BaseType = MapToStandardDataType(usage.Key),
-                CustomSeed = $"{customTypeName}Seed{DateTime.UtcNow:yyyyMMdd}",
+                CustomSeed = "1234",
                 PreserveLength = ShouldPreserveLength(usage.Key),
                 Validation = GenerateValidation(MapToStandardDataType(usage.Key)),
                 Description = $"{MapToStandardDataType(usage.Key)} with {piiAnalysis.DatabaseName}-specific seeding"
@@ -243,16 +245,8 @@ public class ObfuscationConfigGenerator : IObfuscationConfigGenerator
 
     private int DetermineBatchSize(PIIAnalysisResult piiAnalysis)
     {
-        var totalRows = piiAnalysis.TablesWithPII.Sum(t => t.RowCount);
-        var avgRowsPerTable = totalRows / Math.Max(piiAnalysis.TablesWithPII.Count, 1);
-
-        return avgRowsPerTable switch
-        {
-            > 1000000 => 25000,
-            > 100000 => 15000,
-            > 10000 => 10000,
-            _ => 5000
-        };
+        // Fixed batch size of 1000 for all tables
+        return 1000;
     }
 
     private int? DetermineTableBatchSize(TableWithPII table)

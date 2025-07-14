@@ -31,7 +31,9 @@ class Program
             var connectionString = configuration.GetConnectionString("DefaultConnection") ?? 
                                  configuration["ConnectionString"] ?? 
                                  "Server=localhost;Database=AdventureWorks2019;User Id=sa;Password=Count123#;TrustServerCertificate=true;";
-            var databaseName = "AdventureWorks2019";
+            
+            // Extract database name from connection string
+            var databaseName = ExtractDatabaseName(connectionString);
             var outputDirectory = "../JSON";
 
             logger.LogInformation("Starting Enhanced Schema Analysis for database: {DatabaseName}", databaseName);
@@ -212,5 +214,35 @@ class Program
             return 3;
         
         return 5;
+    }
+
+    private static string ExtractDatabaseName(string connectionString)
+    {
+        var builder = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(connectionString);
+        var databaseName = builder.InitialCatalog;
+        
+        if (string.IsNullOrEmpty(databaseName))
+        {
+            // Try to find Database= or Initial Catalog= in the connection string
+            var parts = connectionString.Split(';', StringSplitOptions.RemoveEmptyEntries);
+            foreach (var part in parts)
+            {
+                var keyValue = part.Split('=', 2);
+                if (keyValue.Length == 2)
+                {
+                    var key = keyValue[0].Trim();
+                    var value = keyValue[1].Trim();
+                    
+                    if (key.Equals("Database", StringComparison.OrdinalIgnoreCase) || 
+                        key.Equals("Initial Catalog", StringComparison.OrdinalIgnoreCase))
+                    {
+                        databaseName = value;
+                        break;
+                    }
+                }
+            }
+        }
+        
+        return string.IsNullOrEmpty(databaseName) ? "UnknownDatabase" : databaseName;
     }
 }
