@@ -145,7 +145,6 @@ public class ObfuscationConfigGenerator : IObfuscationConfigGenerator
                 PrimaryKey = tableWithPII.PrimaryKeyColumns,
                 TotalRows = (int)tableWithPII.RowCount,
                 Enabled = true,
-                Notes = DetermineTableNotes(tableWithPII),
                 Columns = GenerateColumnMappings(tableWithPII)
             };
 
@@ -165,14 +164,10 @@ public class ObfuscationConfigGenerator : IObfuscationConfigGenerator
             {
                 ColumnName = piiColumn.ColumnName,
                 DataType = MapToStandardDataType(piiColumn.DataType),
-                SqlDataType = piiColumn.SqlDataType,
                 Enabled = true,
                 IsNullable = piiColumn.IsNullable,
                 MaxLength = piiColumn.MaxLength,
-                Confidence = 0.95, // Default high confidence for Claude-detected PII
-                Reasoning = $"Column contains {MapToStandardDataType(piiColumn.DataType).ToLower()} data detected by AI analysis",
-                PreserveLength = ShouldPreserveLength(piiColumn.DataType),
-                Notes = piiColumn.IsNullable ? "Nullable field" : "Required field"
+                PreserveLength = ShouldPreserveLength(piiColumn.DataType)
             };
 
             columns.Add(columnMapping);
@@ -199,14 +194,6 @@ public class ObfuscationConfigGenerator : IObfuscationConfigGenerator
         };
     }
 
-    private string? DetermineTableNotes(TableWithPII table)
-    {
-        if (table.Priority == 1)
-            return "High priority table with sensitive personal information";
-        if (table.PIIColumns.Count >= 5)
-            return "Table with multiple PII fields";
-        return null;
-    }
 
     private Dictionary<string, DataObfuscation.Common.Models.CustomDataType> GenerateCustomDataTypes(PIIAnalysisResult piiAnalysis)
     {

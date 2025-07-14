@@ -344,11 +344,19 @@ public class ObfuscationEngine : IObfuscationEngine
             _ => throw new NotSupportedException($"Data type '{dataTypeToMatch}' is not supported. Supported types: {SupportedDataTypes.GetAllSupportedTypesString()}")
         };
 
+        // Handle length constraints
         if (columnConfig.PreserveLength && obfuscatedValue.Length != originalValue.Length)
         {
             obfuscatedValue = obfuscatedValue.Length > originalValue.Length 
                 ? obfuscatedValue[..originalValue.Length]
                 : obfuscatedValue.PadRight(originalValue.Length, 'X');
+        }
+        else if (columnConfig.MaxLength.HasValue && obfuscatedValue.Length > columnConfig.MaxLength.Value)
+        {
+            // Enforce MaxLength constraint even when PreserveLength is false
+            obfuscatedValue = obfuscatedValue[..columnConfig.MaxLength.Value];
+            _logger.LogDebug("Truncated value for column {Column} from {OriginalLength} to {MaxLength}", 
+                columnConfig.ColumnName, obfuscatedValue.Length, columnConfig.MaxLength.Value);
         }
 
         return obfuscatedValue;
