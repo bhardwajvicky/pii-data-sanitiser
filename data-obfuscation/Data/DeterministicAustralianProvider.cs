@@ -241,21 +241,62 @@ public class DeterministicAustralianProvider : IDeterministicAustralianProvider
     {
         return GetOrCreateMapping($"AddressLine1_{originalValue}", customSeed, () =>
         {
-            var faker = CreateFaker(originalValue, customSeed);
+            const int MAX_ADDRESS_LENGTH = 60; // Database constraint: nvarchar(60)
             
-            // Use hash of original value to add more variation
-            var hash = Math.Abs(originalValue.GetHashCode());
-            var streetNumber = faker.Random.Number(1, 9999); // Increased range
+            // Generate street number with its own seed
+            var numberSeed = $"{originalValue}_number";
+            var numberFaker = CreateFaker(numberSeed, customSeed);
+            var streetNumber = numberFaker.Random.Number(1, 9999);
             
-            // Add prefixes/suffixes based on hash to increase variations
+            // Generate prefix with cumulative seed (original + number)
+            var prefixSeed = $"{originalValue}_{streetNumber}_prefix";
+            var prefixFaker = CreateFaker(prefixSeed, customSeed);
             var prefixes = DataFileLoader.AU.StreetPrefixes;
-            var prefix = hash % 3 == 0 ? "" : prefixes[hash % prefixes.Length] + " "; // Only use prefix 1/3 of the time
+            var prefixIndex = Math.Abs(prefixSeed.GetHashCode()) % prefixes.Length;
+            var hasPrefix = prefixFaker.Random.Bool(0.33f); // 33% chance of prefix
+            var prefix = hasPrefix ? prefixes[prefixIndex] + " " : "";
             
-            var streetName = faker.Address.StreetName();
+            // Generate street name with cumulative seed (original + number + prefix)
+            var nameSeed = $"{originalValue}_{streetNumber}_{prefix}_name";
+            var nameFaker = CreateFaker(nameSeed, customSeed);
+            // Use data file instead of Bogus street names for more control
+            var cities = DataFileLoader.AU.Cities; // Use cities as street names for variety
+            var nameIndex = Math.Abs(nameSeed.GetHashCode()) % cities.Length;
+            var streetName = cities[nameIndex];
+            
+            // Generate street type with cumulative seed (all previous parts)
+            var typeSeed = $"{originalValue}_{streetNumber}_{prefix}{streetName}_type";
+            var typeFaker = CreateFaker(typeSeed, customSeed);
             var streetTypes = DataFileLoader.AU.StreetTypes;
-            var streetType = streetTypes[(hash / prefixes.Length) % streetTypes.Length];
+            var typeIndex = Math.Abs(typeSeed.GetHashCode()) % streetTypes.Length;
+            var streetType = streetTypes[typeIndex];
             
-            return $"{streetNumber} {prefix}{streetName} {streetType}";
+            var result = $"{streetNumber} {prefix}{streetName} {streetType}".Trim();
+            
+            // If result is too long, try without prefix first
+            if (result.Length > MAX_ADDRESS_LENGTH && hasPrefix)
+            {
+                result = $"{streetNumber} {streetName} {streetType}".Trim();
+            }
+            
+            // If still too long, truncate street name
+            if (result.Length > MAX_ADDRESS_LENGTH)
+            {
+                var baseLength = $"{streetNumber}  {streetType}".Length; // Include spaces
+                var availableForName = MAX_ADDRESS_LENGTH - baseLength;
+                if (availableForName > 5) // Ensure minimum reasonable street name length
+                {
+                    streetName = streetName.Substring(0, Math.Min(streetName.Length, availableForName));
+                    result = $"{streetNumber} {streetName} {streetType}".Trim();
+                }
+                else
+                {
+                    // Last resort: simple truncation
+                    result = result.Substring(0, MAX_ADDRESS_LENGTH).Trim();
+                }
+            }
+            
+            return result;
         });
     }
 
@@ -280,21 +321,58 @@ public class DeterministicAustralianProvider : IDeterministicAustralianProvider
     {
         return GetOrCreateMapping($"City_{originalValue}", customSeed, () =>
         {
-            var faker = CreateFaker(originalValue, customSeed);
+            const int MAX_CITY_LENGTH = 30; // Database constraint: nvarchar(30)
             
-            // Load cities from file for more variation
+            // Generate base city with its own seed
+            var citySeed = $"{originalValue}_city";
+            var cityFaker = CreateFaker(citySeed, customSeed);
             var cities = DataFileLoader.AU.Cities;
+            var cityIndex = Math.Abs(citySeed.GetHashCode()) % cities.Length;
+            var baseCity = cities[cityIndex];
             
-            // Use hash of original value to select city deterministically
-            var hash = Math.Abs(originalValue.GetHashCode());
-            var baseCity = cities[hash % cities.Length];
+            // If base city is already at or near limit, return it without suffix
+            if (baseCity.Length >= MAX_CITY_LENGTH - 5) // Leave room for potential suffix
+            {
+                return baseCity.Length > MAX_CITY_LENGTH ? baseCity.Substring(0, MAX_CITY_LENGTH) : baseCity;
+            }
             
-            // Sometimes add a suburb suffix for more variation
+            // Generate suffix with cumulative seed (original + baseCity)
+            var suffixSeed = $"{originalValue}_{baseCity}_suffix";
+            var suffixFaker = CreateFaker(suffixSeed, customSeed);
             var suffixes = DataFileLoader.AU.CitySuffixes;
-            var suffixIndex = (hash / cities.Length) % (suffixes.Length + 1); // +1 to include empty suffix
-            var suffix = suffixIndex < suffixes.Length ? " " + suffixes[suffixIndex] : "";
+            var hasSuffix = suffixFaker.Random.Bool(0.4f); // 40% chance of suffix
+            var suffix = "";
             
-            return $"{baseCity}{suffix}";
+            if (hasSuffix)
+            {
+                var suffixIndex = Math.Abs(suffixSeed.GetHashCode()) % suffixes.Length;
+                suffix = suffixes[suffixIndex];
+                
+                // Combine intelligently - avoid duplicates like "Hills Hills"
+                if (!baseCity.EndsWith(suffix))
+                {
+                    var potentialResult = $"{baseCity} {suffix}";
+                    
+                    // Check length constraint before adding suffix
+                    if (potentialResult.Length <= MAX_CITY_LENGTH)
+                    {
+                        suffix = " " + suffix;
+                    }
+                    else
+                    {
+                        suffix = ""; // Skip suffix if it would exceed length limit
+                    }
+                }
+                else
+                {
+                    suffix = ""; // Skip if it would create duplication
+                }
+            }
+            
+            var result = $"{baseCity}{suffix}".Trim();
+            
+            // Final safety check - truncate if still too long
+            return result.Length > MAX_CITY_LENGTH ? result.Substring(0, MAX_CITY_LENGTH).Trim() : result;
         });
     }
 

@@ -6,6 +6,7 @@ using System.Text.Json;
 using DataObfuscation.Core;
 using DataObfuscation.Configuration;
 using DataObfuscation.Data;
+using DataObfuscation.Services;
 
 namespace DataObfuscation;
 
@@ -151,5 +152,6 @@ class Program
                 services.AddScoped<IReferentialIntegrityManager, ReferentialIntegrityManager>();
                 services.AddScoped<IDataRepository, SqlServerRepository>();
                 services.AddScoped<IProgressTracker, ProgressTracker>();
+                services.AddScoped<IFailureLogger, FailureLogger>();
             });
 }

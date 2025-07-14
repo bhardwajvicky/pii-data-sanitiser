@@ -44,3 +44,507 @@ Run
 Strand
 Vista
 Wharf
+Access
+Approach
+Arc
+Arterial
+Basin
+Bay
+Beach
+Belt
+Boardwalk
+Brace
+Brae
+Break
+Broadway
+Brook
+Brow
+Bypass
+Byway
+Campus
+Canyon
+Cape
+Causeway
+Center
+Centre
+Chase
+Circle
+Circus
+Cliff
+Close
+Club
+Coast
+Common
+Commons
+Concord
+Concourse
+Connection
+Copse
+Corse
+Cove
+Creek
+Crest
+Cross
+Crossing
+Crossroad
+Crossway
+Cul-de-sac
+Dale
+Dam
+Dash
+Dell
+Dene
+Deviation
+Dip
+Distributor
+Divide
+Dock
+Domain
+Down
+Downs
+Drawbridge
+Drift
+Driveway
+Edge
+Elbow
+End
+Entrance
+Entry
+Estate
+Estates
+Expressway
+Extension
+Fairway
+Falls
+Fare
+Farm
+Fells
+Ferry
+Field
+Fields
+Fireline
+Flat
+Flats
+Follow
+Ford
+Foreshore
+Fork
+Formation
+Fort
+Freeway
+Front
+Frontage
+Gap
+Garden
+Gate
+Gates
+Gateway
+Glade
+Glen
+Grange
+Green
+Greens
+Ground
+Grounds
+Gully
+Halt
+Hamlet
+Harbour
+Haven
+Head
+Heath
+Heights
+Hill
+Hills
+Hollow
+Hub
+Interchange
+Intersection
+Island
+Isle
+Jetty
+Key
+Keys
+Knoll
+Ladder
+Landing
+Lea
+Lead
+Ledge
+Line
+Lookout
+Lower
+Mall
+Manor
+Marina
+Market
+Marsh
+Mart
+Maze
+Meander
+Meadow
+Meadows
+Meander
+Mere
+Mile
+Mill
+Mills
+Moor
+Moorings
+Motorway
+Mount
+Mountain
+Nook
+Oaks
+Outlet
+Outlook
+Oval
+Overpass
+Park
+Parklands
+Parks
+Part
+Passage
+Path
+Pathway
+Peak
+Peninsula
+Pier
+Pike
+Pines
+Place
+Plain
+Plains
+Platform
+Plaza
+Pocket
+Point
+Points
+Port
+Portal
+Prairie
+Precinct
+Promenade
+Pursuit
+Quadrant
+Quays
+Ramble
+Ramp
+Ranch
+Range
+Reach
+Reserve
+Reservoir
+Rest
+Retreat
+Return
+Ride
+Riding
+Ring
+Rise
+River
+Riverway
+Roadside
+Roadway
+Rock
+Rocks
+Rotary
+Round
+Route
+Rue
+Ruelle
+Sands
+Serpentine
+Service
+Shunt
+Side
+Skyway
+Slope
+Sound
+Spur
+Steps
+Strait
+Street
+Strip
+Subway
+Summit
+Swap
+Tarn
+Throughway
+Tollway
+Top
+Tor
+Tower
+Towers
+Town
+Trace
+Trafficway
+Trail
+Tramway
+Triangle
+Trunkway
+Turn
+Turnabout
+Turnpike
+Underpass
+Union
+Vale
+Valley
+Viaduct
+View
+Views
+Villa
+Village
+Villas
+Vine
+Walk
+Wall
+Waters
+Way
+Ways
+Wharf
+Wood
+Woods
+Wynd
+Yard
+Yards
+Street North
+Street South
+Street East
+Street West
+Road North
+Road South
+Road East
+Road West
+Avenue North
+Avenue South
+Avenue East
+Avenue West
+Drive North
+Drive South
+Drive East
+Drive West
+Lane North
+Lane South
+Lane East
+Lane West
+Way North
+Way South
+Way East
+Way West
+Court North
+Court South
+Court East
+Court West
+Place North
+Place South
+Place East
+Place West
+Crescent North
+Crescent South
+Crescent East
+Crescent West
+Parade North
+Parade South
+Parade East
+Parade West
+Boulevard North
+Boulevard South
+Boulevard East
+Boulevard West
+Circuit North
+Circuit South
+Circuit East
+Circuit West
+Grove North
+Grove South
+Grove East
+Grove West
+Terrace North
+Terrace South
+Terrace East
+Terrace West
+Gardens North
+Gardens South
+Gardens East
+Gardens West
+Highway North
+Highway South
+Highway East
+Highway West
+Close North
+Close South
+Close East
+Close West
+Upper Street
+Lower Street
+Upper Road
+Lower Road
+Upper Avenue
+Lower Avenue
+Upper Drive
+Lower Drive
+Upper Lane
+Lower Lane
+Upper Way
+Lower Way
+Upper Court
+Lower Court
+Upper Place
+Lower Place
+Upper Crescent
+Lower Crescent
+Upper Parade
+Lower Parade
+Upper Boulevard
+Lower Boulevard
+Upper Circuit
+Lower Circuit
+Upper Grove
+Lower Grove
+Upper Terrace
+Lower Terrace
+Upper Gardens
+Lower Gardens
+Upper Highway
+Lower Highway
+Upper Close
+Lower Close
+Old Street
+New Street
+Old Road
+New Road
+Old Avenue
+New Avenue
+Old Drive
+New Drive
+Old Lane
+New Lane
+Old Way
+New Way
+Old Court
+New Court
+Old Place
+New Place
+Old Crescent
+New Crescent
+Old Parade
+New Parade
+Old Boulevard
+New Boulevard
+Old Circuit
+New Circuit
+Old Grove
+New Grove
+Old Terrace
+New Terrace
+Old Gardens
+New Gardens
+Old Highway
+New Highway
+Old Close
+New Close
+First Street
+Second Street
+Third Street
+Fourth Street
+Fifth Street
+Sixth Street
+Seventh Street
+Eighth Street
+Ninth Street
+Tenth Street
+First Avenue
+Second Avenue
+Third Avenue
+Fourth Avenue
+Fifth Avenue
+Sixth Avenue
+Seventh Avenue
+Eighth Avenue
+Ninth Avenue
+Tenth Avenue
+First Road
+Second Road
+Third Road
+Fourth Road
+Fifth Road
+Sixth Road
+Seventh Road
+Eighth Road
+Ninth Road
+Tenth Road
+First Drive
+Second Drive
+Third Drive
+Fourth Drive
+Fifth Drive
+Sixth Drive
+Seventh Drive
+Eighth Drive
+Ninth Drive
+Tenth Drive
+First Lane
+Second Lane
+Third Lane
+Fourth Lane
+Fifth Lane
+Sixth Lane
+Seventh Lane
+Eighth Lane
+Ninth Lane
+Tenth Lane
+Central Street
+Central Road
+Central Avenue
+Central Drive
+Central Lane
+Central Way
+Main Street
+Main Road
+Main Avenue
+Main Drive
+Main Lane
+Main Way
+High Street
+High Road
+High Avenue
+High Drive
+High Lane
+High Way
+Market Street
+Market Road
+Market Avenue
+Market Drive
+Market Lane
+Market Way
+Church Street
+Church Road
+Church Avenue
+Church Drive
+Church Lane
+Church Way
+School Street
+School Road
+School Avenue
+School Drive
+School Lane
+School Way
+Park Street
+Park Road
+Park Avenue
+Park Drive
+Park Lane
+Park Way
+Station Street
+Station Road
+Station Avenue
+Station Drive
+Station Lane
+Station Way
+Bridge Street
+Bridge Road
+Bridge Avenue
+Bridge Drive
+Bridge Lane
+Bridge Way

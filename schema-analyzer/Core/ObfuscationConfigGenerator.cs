@@ -78,9 +78,9 @@ public class ObfuscationConfigGenerator : IObfuscationConfigGenerator
             Global = new DataObfuscation.Common.Models.GlobalConfiguration
             {
                 ConnectionString = connectionString,
-                GlobalSeed = "1234",
+                GlobalSeed = "DataObfuscation2024-CrossDB-Deterministic-AU-v3.7.2",
                 BatchSize = DetermineBatchSize(piiAnalysis),
-                ParallelThreads = 4,
+                ParallelThreads = 8,
                 MaxCacheSize = DetermineCacheSize(piiAnalysis),
                 DryRun = false,
                 PersistMappings = true,
@@ -215,7 +215,7 @@ public class ObfuscationConfigGenerator : IObfuscationConfigGenerator
             dataTypes[customTypeName] = new DataObfuscation.Common.Models.CustomDataType
             {
                 BaseType = MapToStandardDataType(usage.Key),
-                CustomSeed = "1234",
+                CustomSeed = "DataObfuscation2024-CrossDB-Deterministic-AU-v3.7.2",
                 PreserveLength = ShouldPreserveLength(usage.Key),
                 Validation = GenerateValidation(MapToStandardDataType(usage.Key)),
                 Description = $"{MapToStandardDataType(usage.Key)} with {piiAnalysis.DatabaseName}-specific seeding"

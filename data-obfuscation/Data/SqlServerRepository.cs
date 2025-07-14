@@ -16,7 +16,7 @@ public interface IDataRepository
         int offset, 
         int batchSize, 
         string? whereClause = null);
-    Task UpdateBatchAsync(
+    Task<UpdateBatchResult> UpdateBatchAsync(
         string tableName, 
         List<Dictionary<string, object?>> batch, 
         List<string> primaryKeyColumns);
@@ -109,13 +109,14 @@ public class SqlServerRepository : IDataRepository
         return results;
     }
 
-    public async Task UpdateBatchAsync(
+    public async Task<UpdateBatchResult> UpdateBatchAsync(
         string tableName, 
         List<Dictionary<string, object?>> batch, 
         List<string> primaryKeyColumns)
     {
+        var result = new UpdateBatchResult();
         if (!batch.Any())
-            return;
+            return result;
 
         using var connection = new SqlConnection(_connectionString);
         await connection.OpenAsync();
@@ -126,16 +127,41 @@ public class SqlServerRepository : IDataRepository
         {
             foreach (var row in batch)
             {
-                await UpdateRowAsync(tableName, row, primaryKeyColumns, connection, transaction);
+                try
+                {
+                    await UpdateRowAsync(tableName, row, primaryKeyColumns, connection, transaction);
+                    result.SuccessfulRows++;
+                }
+                catch (SqlException ex) when (ex.Number == 2601 || ex.Number == 2627) // Unique constraint violations
+                {
+                    result.FailedRows.Add(new FailedRow
+                    {
+                        TableName = tableName,
+                        PrimaryKeyValues = primaryKeyColumns.ToDictionary(pk => pk, pk => row[pk]),
+                        UpdatedValues = row.Where(kvp => !primaryKeyColumns.Contains(kvp.Key))
+                            .ToDictionary(kvp => kvp.Key, kvp => kvp.Value),
+                        ErrorMessage = ex.Message,
+                        SqlErrorNumber = ex.Number
+                    });
+                    result.SkippedRows++;
+                    
+                    _logger.LogWarning("Skipped duplicate row in table {TableName}: {ErrorMessage}", 
+                        tableName, ex.Message);
+                    // Continue with next row instead of throwing
+                }
             }
             
             await transaction.CommitAsync();
         }
-        catch
+        catch (Exception ex)
         {
             await transaction.RollbackAsync();
+            result.HasCriticalError = true;
+            result.CriticalErrorMessage = ex.Message;
             throw;
         }
+        
+        return result;
     }
 
     private async Task UpdateRowAsync(

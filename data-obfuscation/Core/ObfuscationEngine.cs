@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using DataObfuscation.Configuration;
 using DataObfuscation.Data;
 using DataObfuscation.Common.DataTypes;
+using DataObfuscation.Services;
 using System.Diagnostics;
 
 namespace DataObfuscation.Core;
@@ -18,19 +19,22 @@ public class ObfuscationEngine : IObfuscationEngine
     private readonly IReferentialIntegrityManager _integrityManager;
     private readonly IDataRepository _dataRepository;
     private readonly IProgressTracker _progressTracker;
+    private readonly IFailureLogger _failureLogger;
 
     public ObfuscationEngine(
         ILogger<ObfuscationEngine> logger,
         IDeterministicAustralianProvider dataProvider,
         IReferentialIntegrityManager integrityManager,
         IDataRepository dataRepository,
-        IProgressTracker progressTracker)
+        IProgressTracker progressTracker,
+        IFailureLogger failureLogger)
     {
         _logger = logger;
         _dataProvider = dataProvider;
         _integrityManager = integrityManager;
         _dataRepository = dataRepository;
         _progressTracker = progressTracker;
+        _failureLogger = failureLogger;
     }
 
     public async Task<ObfuscationResult> ExecuteAsync(ObfuscationConfiguration config)
@@ -41,6 +45,10 @@ public class ObfuscationEngine : IObfuscationEngine
         try
         {
             _logger.LogInformation("Starting data obfuscation process");
+            
+            // Initialize failure logger
+            var databaseName = ExtractDatabaseName(config.Global.ConnectionString);
+            await _failureLogger.InitializeAsync(databaseName);
             
             await InitializeAsync(config);
             
@@ -74,6 +82,7 @@ public class ObfuscationEngine : IObfuscationEngine
             }
 
             await FinalizeAsync(config);
+            await _failureLogger.FinalizeAsync();
 
             stopwatch.Stop();
             result.Duration = stopwatch.Elapsed;
@@ -195,9 +204,37 @@ public class ObfuscationEngine : IObfuscationEngine
 
                 var obfuscatedBatch = await ObfuscateBatchAsync(batch, enabledColumns, globalConfig);
                 
-                await _dataRepository.UpdateBatchAsync(tableConfig.TableName, obfuscatedBatch, tableConfig.PrimaryKey);
+                var updateResult = await _dataRepository.UpdateBatchAsync(tableConfig.TableName, obfuscatedBatch, tableConfig.PrimaryKey);
 
-                processedRows += batch.Count;
+                processedRows += updateResult.SuccessfulRows;
+                
+                // Log failed rows with details
+                if (updateResult.FailedRows.Any())
+                {
+                    foreach (var failedRow in updateResult.FailedRows)
+                    {
+                        // Add original values to the failed row for better logging
+                        var originalRow = batch.FirstOrDefault(b => 
+                            failedRow.PrimaryKeyValues.All(pk => b.ContainsKey(pk.Key) && b[pk.Key]?.ToString() == pk.Value?.ToString()));
+                        
+                        if (originalRow != null)
+                        {
+                            foreach (var col in enabledColumns)
+                            {
+                                if (originalRow.ContainsKey(col.ColumnName))
+                                {
+                                    failedRow.UpdatedValues[$"{col.ColumnName}_original"] = originalRow[col.ColumnName];
+                                }
+                            }
+                        }
+                        
+                        await _failureLogger.LogFailedRowAsync(failedRow);
+                        _logger.LogError("Failed to update row: {FailedRowDetails}", failedRow.GetLogMessage());
+                    }
+                    
+                    _logger.LogWarning("Batch completed with {SuccessfulRows} successful and {SkippedRows} skipped rows", 
+                        updateResult.SuccessfulRows, updateResult.SkippedRows);
+                }
                 offset += batchSize;
 
                 _progressTracker.UpdateProgress(tableConfig.TableName, processedRows, totalRows);
@@ -417,6 +454,20 @@ public class ObfuscationEngine : IObfuscationEngine
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to generate report");
+        }
+    }
+
+    private string ExtractDatabaseName(string connectionString)
+    {
+        try
+        {
+            var builder = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(connectionString);
+            var databaseName = builder.InitialCatalog;
+            return string.IsNullOrEmpty(databaseName) ? "UnknownDatabase" : databaseName;
+        }
+        catch
+        {
+            return "UnknownDatabase";
         }
     }
 }
