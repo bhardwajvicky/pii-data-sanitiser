@@ -28,4 +28,10 @@
     <ProjectReference Include="../DataObfuscation.Common/DataObfuscation.Common.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="Data\**\*.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

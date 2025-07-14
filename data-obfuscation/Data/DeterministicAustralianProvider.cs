@@ -48,10 +48,11 @@ public class DeterministicAustralianProvider : IDeterministicAustralianProvider
     private readonly string _globalSeed;
     private readonly ConcurrentDictionary<string, string> _mappingCache;
     
-    private static readonly string[] AustralianStates = { "NSW", "VIC", "QLD", "WA", "SA", "TAS", "NT", "ACT" };
-    private static readonly string[] CompanySuffixes = { "Transport", "Logistics", "Haulage", "Fleet Services", "Distribution", "Freight" };
-    private static readonly string[] VehicleMakes = { "Toyota", "Ford", "Isuzu", "Mercedes-Benz", "Volvo", "Scania", "Kenworth", "Mack" };
-    private static readonly string[] VehicleModels = { "Hiace", "Transit", "Sprinter", "Crafter", "Daily", "Canter", "Dyna", "Ranger" };
+    // Data is now loaded from files via DataFileLoader
+    private static string[] AustralianStates => DataFileLoader.AU.States;
+    private static string[] CompanySuffixes => DataFileLoader.AU.CompanySuffixes;
+    private static string[] VehicleMakes => DataFileLoader.AU.VehicleMakes;
+    private static string[] VehicleModels => DataFileLoader.AU.VehicleModels;
 
     public DeterministicAustralianProvider(ILogger<DeterministicAustralianProvider> logger, string globalSeed = "DefaultSeed2024")
     {
@@ -241,11 +242,20 @@ public class DeterministicAustralianProvider : IDeterministicAustralianProvider
         return GetOrCreateMapping($"AddressLine1_{originalValue}", customSeed, () =>
         {
             var faker = CreateFaker(originalValue, customSeed);
-            var streetNumber = faker.Random.Number(1, 999);
-            var streetName = faker.Address.StreetName();
-            var streetType = faker.PickRandom(new[] { "Street", "Road", "Avenue", "Drive", "Lane", "Circuit" });
             
-            return $"{streetNumber} {streetName} {streetType}";
+            // Use hash of original value to add more variation
+            var hash = Math.Abs(originalValue.GetHashCode());
+            var streetNumber = faker.Random.Number(1, 9999); // Increased range
+            
+            // Add prefixes/suffixes based on hash to increase variations
+            var prefixes = DataFileLoader.AU.StreetPrefixes;
+            var prefix = hash % 3 == 0 ? "" : prefixes[hash % prefixes.Length] + " "; // Only use prefix 1/3 of the time
+            
+            var streetName = faker.Address.StreetName();
+            var streetTypes = DataFileLoader.AU.StreetTypes;
+            var streetType = streetTypes[(hash / prefixes.Length) % streetTypes.Length];
+            
+            return $"{streetNumber} {prefix}{streetName} {streetType}";
         });
     }
 
@@ -271,7 +281,20 @@ public class DeterministicAustralianProvider : IDeterministicAustralianProvider
         return GetOrCreateMapping($"City_{originalValue}", customSeed, () =>
         {
             var faker = CreateFaker(originalValue, customSeed);
-            return faker.Address.City();
+            
+            // Load cities from file for more variation
+            var cities = DataFileLoader.AU.Cities;
+            
+            // Use hash of original value to select city deterministically
+            var hash = Math.Abs(originalValue.GetHashCode());
+            var baseCity = cities[hash % cities.Length];
+            
+            // Sometimes add a suburb suffix for more variation
+            var suffixes = DataFileLoader.AU.CitySuffixes;
+            var suffixIndex = (hash / cities.Length) % (suffixes.Length + 1); // +1 to include empty suffix
+            var suffix = suffixIndex < suffixes.Length ? " " + suffixes[suffixIndex] : "";
+            
+            return $"{baseCity}{suffix}";
         });
     }
 
@@ -304,8 +327,29 @@ public class DeterministicAustralianProvider : IDeterministicAustralianProvider
     {
         return GetOrCreateMapping($"PostCode_{originalValue}", customSeed, () =>
         {
-            var faker = CreateFaker(originalValue, customSeed);
-            return faker.Random.Number(1000, 9999).ToString();
+            // Use hash to ensure more variation while maintaining Australian postcode patterns
+            var hash = Math.Abs(originalValue.GetHashCode());
+            
+            // Australian postcodes are 4 digits and follow state patterns
+            // Using hash to deterministically generate valid postcodes
+            var postcodeRanges = new[]
+            {
+                (2000, 2999), // NSW
+                (3000, 3999), // VIC  
+                (4000, 4999), // QLD
+                (5000, 5999), // SA
+                (6000, 6999), // WA
+                (7000, 7999), // TAS
+                (2600, 2699), // ACT
+                (800, 899)    // NT (will be padded to 4 digits)
+            };
+            
+            var rangeIndex = hash % postcodeRanges.Length;
+            var (min, max) = postcodeRanges[rangeIndex];
+            var postcode = min + (hash / postcodeRanges.Length) % (max - min + 1);
+            
+            // NT postcodes need padding
+            return postcode < 1000 ? postcode.ToString("D4") : postcode.ToString();
         });
     }
 

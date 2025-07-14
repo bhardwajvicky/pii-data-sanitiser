@@ -166,7 +166,6 @@ public class ObfuscationConfigGenerator : IObfuscationConfigGenerator
                 DataType = MapToStandardDataType(piiColumn.DataType),
                 Enabled = true,
                 IsNullable = piiColumn.IsNullable,
-                MaxLength = piiColumn.MaxLength,
                 PreserveLength = ShouldPreserveLength(piiColumn.DataType)
             };
 

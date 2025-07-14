@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace DataObfuscation.Common.Models;
 
 /// <summary>
@@ -32,6 +34,8 @@ public class TableMapping
     public List<ColumnMapping> Columns { get; set; } = new();
     public int TotalRows { get; set; } = 0;
     public bool Enabled { get; set; } = true;
+    
+    [JsonIgnore]
     public string? Notes { get; set; }
 }
 
@@ -39,13 +43,25 @@ public class ColumnMapping
 {
     public string ColumnName { get; set; } = string.Empty;
     public string DataType { get; set; } = string.Empty;
+    
+    [JsonIgnore]
     public string SqlDataType { get; set; } = string.Empty;
+    
     public bool Enabled { get; set; } = true;
     public bool IsNullable { get; set; }
+    
+    [JsonIgnore]
     public int? MaxLength { get; set; }
+    
+    [JsonIgnore]
     public double Confidence { get; set; } = 1.0;
+    
+    [JsonIgnore]
     public string? Reasoning { get; set; }
+    
     public bool PreserveLength { get; set; } = false;
+    
+    [JsonIgnore]
     public string? Notes { get; set; }
 }
 

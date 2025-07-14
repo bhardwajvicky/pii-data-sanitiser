@@ -34,9 +34,10 @@ public class DeterministicUKProvider : IDeterministicUKProvider
     private readonly string _globalSeed;
     private readonly ConcurrentDictionary<string, string> _mappingCache;
     
-    private static readonly string[] UKCountries = { "England", "Scotland", "Wales", "Northern Ireland" };
-    private static readonly string[] CompanySuffixes = { "Ltd", "Limited", "PLC", "& Co", "Group", "Holdings", "Services", "Solutions" };
-    private static readonly string[] EmailDomains = { "btinternet.com", "sky.com", "gmail.com", "outlook.com", "yahoo.co.uk", "hotmail.co.uk" };
+    // Data is now loaded from files via DataFileLoader
+    private static string[] UKCountries => DataFileLoader.UK.Countries;
+    private static string[] CompanySuffixes => DataFileLoader.UK.CompanySuffixes;
+    private static string[] EmailDomains => DataFileLoader.UK.EmailDomains;
 
     public DeterministicUKProvider(ILogger<DeterministicUKProvider> logger, string globalSeed = "DefaultUKSeed2024")
     {

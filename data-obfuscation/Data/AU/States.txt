@@ -1,0 +1,8 @@
+NSW
+VIC
+QLD
+WA
+SA
+TAS
+NT
+ACT
