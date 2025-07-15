@@ -45,11 +45,21 @@ dotnet run
 ```
 
 ### Configuration
-The tool is pre-configured to connect to:
-- **Server**: localhost
-- **Database**: AdventureWorks2019
-- **Authentication**: SQL Server (sa/Count123#)
-- **Output**: ../JSON/AdventureWorks2019.json
+
+The application uses `appsettings.json` for configuration. Templates are provided:
+
+- `appsettings.template.json` - Basic template with all options
+- `appsettings.Development.template.json` - Development environment template  
+- `appsettings.Production.template.json` - Production environment template
+
+Copy the appropriate template and rename it to `appsettings.json`, then update with your values:
+
+```bash
+cp appsettings.template.json appsettings.json
+# Edit appsettings.json with your connection string and settings
+```
+
+See [CONFIGURATION.md](CONFIGURATION.md) for detailed configuration documentation.
 
 ### Output Files
 1. **AdventureWorks2019.json**: Complete obfuscation configuration

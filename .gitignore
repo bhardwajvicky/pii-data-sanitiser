@@ -88,6 +88,8 @@ mappings/
 # Configuration files with sensitive data
 **/appsettings.json
 **/appsettings.*.json
+!**/appsettings.template.json
+!**/appsettings.*.template.json
 
 # Generated JSON configuration files
 JSON/
