@@ -1,4 +1,4 @@
-# Schema Analyzer Tool
+# Auto Mapping Generator Tool
 
 A .NET 8 console application that analyzes SQL Server database schemas to automatically identify columns containing Personally Identifiable Information (PII) and generates configuration files for the data-obfuscation project.
 
@@ -39,7 +39,7 @@ This tool automates the discovery of PII columns in SQL Server databases and cre
 ### Basic Usage
 ```bash
 # Build and run
-cd schema-analyzer
+cd auto-mapping-generator
 dotnet build
 dotnet run
 ```
@@ -104,7 +104,7 @@ Obfuscation: Address
   "metadata": {
     "configVersion": "2.1",
     "description": "Auto-generated obfuscation configuration",
-    "createdBy": "SchemaAnalyzer"
+    "createdBy": "AutoMappingGenerator"
   },
   "global": {
     "connectionString": "...",
@@ -196,7 +196,7 @@ var connectionString = "Server=your-server;Database=your-db;...";
 ## 🛠️ Architecture
 
 ```
-SchemaAnalyzer/
+AutoMappingGenerator/
 ├── Models/
 │   └── SchemaModels.cs          # Data models
 ├── Services/

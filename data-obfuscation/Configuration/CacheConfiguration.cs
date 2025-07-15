@@ -1,4 +1,4 @@
-using DataObfuscation.Common.DataTypes;
+using Common.DataTypes;
 
 namespace DataObfuscation.Configuration;
 

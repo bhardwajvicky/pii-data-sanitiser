@@ -1,4 +1,4 @@
-namespace DataObfuscation.Common.Models;
+namespace Common.Models;
 
 /// <summary>
 /// Configuration settings for the obfuscation process

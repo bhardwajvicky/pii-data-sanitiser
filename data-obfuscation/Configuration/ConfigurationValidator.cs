@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 using DataObfuscation.Configuration;
-using DataObfuscation.Common.DataTypes;
+using Common.DataTypes;
 
 namespace DataObfuscation.Configuration;
 

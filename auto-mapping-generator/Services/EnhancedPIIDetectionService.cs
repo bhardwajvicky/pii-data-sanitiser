@@ -1,9 +1,9 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Data.SqlClient;
-using SchemaAnalyzer.Models;
-using DataObfuscation.Common.DataTypes;
+using AutoMappingGenerator.Models;
+using Common.DataTypes;
 
-namespace SchemaAnalyzer.Services;
+namespace AutoMappingGenerator.Services;
 
 public interface IEnhancedPIIDetectionService
 {

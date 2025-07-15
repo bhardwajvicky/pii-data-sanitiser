@@ -1,4 +1,4 @@
-namespace DataObfuscation.Common.DataTypes;
+namespace Common.DataTypes;
 
 /// <summary>
 /// Centralized definition of all supported data types for both schema-analyzer and data-obfuscation projects.

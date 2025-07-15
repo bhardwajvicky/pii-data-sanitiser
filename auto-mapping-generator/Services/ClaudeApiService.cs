@@ -1,10 +1,10 @@
 using Microsoft.Extensions.Logging;
-using DataObfuscation.Common.DataTypes;
+using Common.DataTypes;
 using System.Text.Json;
 using System.Text;
-using SchemaAnalyzer.Models;
+using AutoMappingGenerator.Models;
 
-namespace SchemaAnalyzer.Services;
+namespace AutoMappingGenerator.Services;
 
 public interface IClaudeApiService
 {

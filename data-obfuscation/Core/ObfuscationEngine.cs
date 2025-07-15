@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using DataObfuscation.Configuration;
 using DataObfuscation.Data;
-using DataObfuscation.Common.DataTypes;
+using Common.DataTypes;
 using DataObfuscation.Services;
 using System.Diagnostics;
 

@@ -1,8 +1,8 @@
 using Microsoft.Extensions.Logging;
-using SchemaAnalyzer.Models;
+using AutoMappingGenerator.Models;
 using System.Text.RegularExpressions;
 
-namespace SchemaAnalyzer.Services;
+namespace AutoMappingGenerator.Services;
 
 public interface IPIIDetectionService
 {

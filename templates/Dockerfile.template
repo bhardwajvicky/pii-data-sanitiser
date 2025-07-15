@@ -1,0 +1,64 @@
+# Multi-stage build for PII Data Sanitizer
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /src
+
+# Copy solution and project files
+COPY *.sln .
+COPY Common/*.csproj ./Common/
+COPY auto-mapping-generator/*.csproj ./auto-mapping-generator/
+COPY data-obfuscation/*.csproj ./data-obfuscation/
+
+# Restore dependencies
+RUN dotnet restore
+
+# Copy source code
+COPY Common/. ./Common/
+COPY auto-mapping-generator/. ./auto-mapping-generator/
+COPY data-obfuscation/. ./data-obfuscation/
+
+# Build projects
+RUN dotnet build -c Release --no-restore
+
+# Publish applications
+RUN dotnet publish auto-mapping-generator/AutoMappingGenerator.csproj -c Release -o /app/auto-mapping-generator --no-restore
+RUN dotnet publish data-obfuscation/DataObfuscation.csproj -c Release -o /app/data-obfuscation --no-restore
+
+# Runtime image
+FROM mcr.microsoft.com/dotnet/runtime:8.0 AS runtime
+WORKDIR /app
+
+# Install required packages
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy published applications
+COPY --from=build /app/auto-mapping-generator ./auto-mapping-generator
+COPY --from=build /app/data-obfuscation ./data-obfuscation
+
+# Copy data files
+COPY data-obfuscation/Data ./data-obfuscation/Data
+
+# Create directories for output
+RUN mkdir -p /app/JSON /app/logs /app/reports /app/mappings /app/audit
+
+# Set environment variables
+ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false
+ENV LC_ALL=en_US.UTF-8
+ENV LANG=en_US.UTF-8
+
+# Create non-root user
+RUN useradd -m -s /bin/bash obfuscator && \
+    chown -R obfuscator:obfuscator /app
+
+USER obfuscator
+
+# Volume mounts for persistent data
+VOLUME ["/app/JSON", "/app/logs", "/app/reports", "/app/mappings", "/app/audit"]
+
+# Default entrypoint (can be overridden)
+ENTRYPOINT ["dotnet"]
+
+# Default command shows help
+CMD ["--help"]

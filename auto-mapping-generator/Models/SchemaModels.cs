@@ -1,4 +1,4 @@
-namespace SchemaAnalyzer.Models;
+namespace AutoMappingGenerator.Models;
 
 public class DatabaseSchema
 {

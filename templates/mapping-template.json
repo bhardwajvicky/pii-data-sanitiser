@@ -1,0 +1,203 @@
+{
+  "Metadata": {
+    "ConfigVersion": "2.1",
+    "Description": "Template for table and column mappings",
+    "CreatedBy": "Manual",
+    "CreatedDate": "2024-07-15T00:00:00Z",
+    "LastModified": "2024-07-15T00:00:00Z",
+    "DatabaseName": "YourDatabase",
+    "TotalTables": 0,
+    "TotalColumns": 0,
+    "TotalPiiColumns": 0
+  },
+  "Tables": [
+    {
+      "TableName": "Employee",
+      "Schema": "dbo",
+      "FullTableName": "dbo.Employee",
+      "PrimaryKey": [
+        "EmployeeID"
+      ],
+      "Columns": [
+        {
+          "ColumnName": "FirstName",
+          "DataType": "FirstName",
+          "Enabled": true,
+          "IsNullable": false,
+          "PreserveLength": false,
+          "SqlDataType": "nvarchar",
+          "MaxLength": 50
+        },
+        {
+          "ColumnName": "LastName",
+          "DataType": "LastName",
+          "Enabled": true,
+          "IsNullable": false,
+          "PreserveLength": false,
+          "SqlDataType": "nvarchar",
+          "MaxLength": 50
+        },
+        {
+          "ColumnName": "Email",
+          "DataType": "Email",
+          "Enabled": true,
+          "IsNullable": false,
+          "PreserveLength": false,
+          "SqlDataType": "nvarchar",
+          "MaxLength": 100
+        },
+        {
+          "ColumnName": "Phone",
+          "DataType": "Phone",
+          "Enabled": true,
+          "IsNullable": true,
+          "PreserveLength": false,
+          "SqlDataType": "nvarchar",
+          "MaxLength": 20
+        },
+        {
+          "ColumnName": "AddressLine1",
+          "DataType": "AddressLine1",
+          "Enabled": true,
+          "IsNullable": false,
+          "PreserveLength": false,
+          "SqlDataType": "nvarchar",
+          "MaxLength": 60
+        },
+        {
+          "ColumnName": "City",
+          "DataType": "City",
+          "Enabled": true,
+          "IsNullable": false,
+          "PreserveLength": false,
+          "SqlDataType": "nvarchar",
+          "MaxLength": 30
+        },
+        {
+          "ColumnName": "PostalCode",
+          "DataType": "PostCode",
+          "Enabled": true,
+          "IsNullable": false,
+          "PreserveLength": false,
+          "SqlDataType": "nvarchar",
+          "MaxLength": 15
+        }
+      ],
+      "TotalRows": 0,
+      "Enabled": true,
+      "ProcessingOrder": 1,
+      "HasPII": true
+    },
+    {
+      "TableName": "Customer",
+      "Schema": "dbo",
+      "FullTableName": "dbo.Customer",
+      "PrimaryKey": [
+        "CustomerID"
+      ],
+      "Columns": [
+        {
+          "ColumnName": "CompanyName",
+          "DataType": "CompanyName",
+          "Enabled": true,
+          "IsNullable": false,
+          "PreserveLength": false,
+          "SqlDataType": "nvarchar",
+          "MaxLength": 100
+        },
+        {
+          "ColumnName": "ContactName",
+          "DataType": "FullName",
+          "Enabled": true,
+          "IsNullable": false,
+          "PreserveLength": false,
+          "SqlDataType": "nvarchar",
+          "MaxLength": 100
+        },
+        {
+          "ColumnName": "ContactEmail",
+          "DataType": "Email",
+          "Enabled": true,
+          "IsNullable": false,
+          "PreserveLength": false,
+          "SqlDataType": "nvarchar",
+          "MaxLength": 100
+        },
+        {
+          "ColumnName": "ABN",
+          "DataType": "BusinessABN",
+          "Enabled": true,
+          "IsNullable": true,
+          "PreserveLength": false,
+          "SqlDataType": "nvarchar",
+          "MaxLength": 20
+        }
+      ],
+      "TotalRows": 0,
+      "Enabled": true,
+      "ProcessingOrder": 2,
+      "HasPII": true
+    }
+  ],
+  "ReferentialIntegrityRelationships": [
+    {
+      "ParentTable": "dbo.Department",
+      "ParentColumn": "DepartmentID",
+      "ChildTable": "dbo.Employee",
+      "ChildColumn": "DepartmentID"
+    },
+    {
+      "ParentTable": "dbo.Employee",
+      "ParentColumn": "EmployeeID",
+      "ChildTable": "dbo.Order",
+      "ChildColumn": "SalesPersonID"
+    }
+  ],
+  "DataTypeDefinitions": {
+    "FirstName": {
+      "Description": "First names or given names",
+      "Examples": ["John", "Jane", "Michael"],
+      "Pattern": null
+    },
+    "LastName": {
+      "Description": "Last names or surnames",
+      "Examples": ["Smith", "Johnson", "Williams"],
+      "Pattern": null
+    },
+    "Email": {
+      "Description": "Email addresses",
+      "Examples": ["john.doe@example.com"],
+      "Pattern": "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
+    },
+    "Phone": {
+      "Description": "Phone numbers",
+      "Examples": ["(02) 1234 5678", "0412 345 678"],
+      "Pattern": null
+    },
+    "AddressLine1": {
+      "Description": "Primary address line",
+      "Examples": ["123 Main Street", "45 Queen Avenue"],
+      "Pattern": null
+    },
+    "City": {
+      "Description": "City or suburb name",
+      "Examples": ["Sydney", "Melbourne", "Brisbane"],
+      "Pattern": null
+    },
+    "PostCode": {
+      "Description": "Postal code",
+      "Examples": ["2000", "3000", "4000"],
+      "Pattern": "^[0-9]{4}$"
+    },
+    "CompanyName": {
+      "Description": "Business or company name",
+      "Examples": ["Acme Corporation", "Global Logistics Pty Ltd"],
+      "Pattern": null
+    },
+    "BusinessABN": {
+      "Description": "Australian Business Number",
+      "Examples": ["12 345 678 901"],
+      "Pattern": "^[0-9]{2} [0-9]{3} [0-9]{3} [0-9]{3}$"
+    }
+  }
+}

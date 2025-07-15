@@ -1,7 +1,7 @@
 using System.Text.Json;
 using FluentValidation;
 using Microsoft.Extensions.Logging;
-using DataObfuscation.Common.Models;
+using Common.Models;
 
 namespace DataObfuscation.Configuration;
 
@@ -90,7 +90,7 @@ public class ConfigurationParser : IConfigurationParser
 
         // Load configuration file
         var configContent = await File.ReadAllTextAsync(configFilePath);
-        var config = JsonSerializer.Deserialize<DataObfuscation.Common.Models.ObfuscationConfiguration>(configContent, options);
+        var config = JsonSerializer.Deserialize<Common.Models.ObfuscationConfiguration>(configContent, options);
         
         if (config == null)
         {
@@ -110,7 +110,7 @@ public class ConfigurationParser : IConfigurationParser
     }
 
     private ObfuscationConfiguration MergeConfiguration(TableColumnMapping mapping, 
-        DataObfuscation.Common.Models.ObfuscationConfiguration config)
+        Common.Models.ObfuscationConfiguration config)
     {
         var mergedConfig = new ObfuscationConfiguration
         {
@@ -151,7 +151,7 @@ public class ConfigurationParser : IConfigurationParser
     }
 
     private Dictionary<string, CustomDataType> ConvertCustomDataTypes(
-        Dictionary<string, DataObfuscation.Common.Models.CustomDataType> sourceDataTypes)
+        Dictionary<string, Common.Models.CustomDataType> sourceDataTypes)
     {
         var result = new Dictionary<string, CustomDataType>();
         
@@ -172,7 +172,7 @@ public class ConfigurationParser : IConfigurationParser
     }
 
     private ValidationConfiguration? ConvertValidation(
-        DataObfuscation.Common.Models.ValidationConfiguration? source)
+        Common.Models.ValidationConfiguration? source)
     {
         if (source == null) return null;
         
@@ -186,7 +186,7 @@ public class ConfigurationParser : IConfigurationParser
     }
 
     private FormattingConfiguration? ConvertFormatting(
-        DataObfuscation.Common.Models.FormattingConfiguration? source)
+        Common.Models.FormattingConfiguration? source)
     {
         if (source == null) return null;
         
@@ -199,7 +199,7 @@ public class ConfigurationParser : IConfigurationParser
     }
 
     private TransformationConfiguration? ConvertTransformation(
-        DataObfuscation.Common.Models.TransformationConfiguration? source)
+        Common.Models.TransformationConfiguration? source)
     {
         if (source == null) return null;
         
@@ -211,7 +211,7 @@ public class ConfigurationParser : IConfigurationParser
     }
 
     private ReferentialIntegrityConfiguration ConvertReferentialIntegrity(
-        DataObfuscation.Common.Models.ReferentialIntegrityConfiguration source)
+        Common.Models.ReferentialIntegrityConfiguration source)
     {
         var result = new ReferentialIntegrityConfiguration
         {

@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace DataObfuscation.Common.Models;
+namespace Common.Models;
 
 /// <summary>
 /// Clean, user-friendly view of table and column mappings for obfuscation

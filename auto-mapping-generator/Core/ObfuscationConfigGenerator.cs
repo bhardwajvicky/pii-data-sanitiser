@@ -1,10 +1,10 @@
 using Microsoft.Extensions.Logging;
-using SchemaAnalyzer.Models;
-using DataObfuscation.Common.Models;
-using DataObfuscation.Common.DataTypes;
+using AutoMappingGenerator.Models;
+using Common.Models;
+using Common.DataTypes;
 using System.Text.Json.Serialization;
 
-namespace SchemaAnalyzer.Core;
+namespace AutoMappingGenerator.Core;
 
 public interface IObfuscationConfigGenerator
 {
@@ -47,7 +47,7 @@ public class ObfuscationConfigGenerator : IObfuscationConfigGenerator
             {
                 ConfigVersion = "2.1",
                 Description = $"Table and column mappings for {piiAnalysis.DatabaseName} database",
-                CreatedBy = "SchemaAnalyzer",
+                CreatedBy = "AutoMappingGenerator",
                 CreatedDate = DateTime.UtcNow,
                 LastModified = DateTime.UtcNow,
                 DatabaseName = piiAnalysis.DatabaseName,
@@ -69,16 +69,16 @@ public class ObfuscationConfigGenerator : IObfuscationConfigGenerator
             {
                 ConfigVersion = "2.1",
                 Description = $"Obfuscation configuration for {piiAnalysis.DatabaseName} database",
-                CreatedBy = "SchemaAnalyzer",
+                CreatedBy = "AutoMappingGenerator",
                 CreatedDate = DateTime.UtcNow,
                 LastModified = DateTime.UtcNow,
                 MappingFileVersion = "2.1",
                 DatabaseName = piiAnalysis.DatabaseName
             },
-            Global = new DataObfuscation.Common.Models.GlobalConfiguration
+            Global = new Common.Models.GlobalConfiguration
             {
                 ConnectionString = connectionString,
-                GlobalSeed = "DataObfuscation2024-CrossDB-Deterministic-AU-v3.7.2",
+                GlobalSeed = "PII-Sanitizer-2024-CrossDB-Deterministic-AU-v3.7.2",
                 BatchSize = DetermineBatchSize(piiAnalysis),
                 ParallelThreads = 8,
                 MaxCacheSize = DetermineCacheSize(piiAnalysis),
@@ -91,14 +91,14 @@ public class ObfuscationConfigGenerator : IObfuscationConfigGenerator
                 EnableProgressTracking = true
             },
             DataTypes = GenerateCustomDataTypes(piiAnalysis),
-            ReferentialIntegrity = new DataObfuscation.Common.Models.ReferentialIntegrityConfiguration
+            ReferentialIntegrity = new Common.Models.ReferentialIntegrityConfiguration
             {
                 Enabled = false,
-                Relationships = new List<DataObfuscation.Common.Models.RelationshipConfiguration>(),
+                Relationships = new List<Common.Models.RelationshipConfiguration>(),
                 StrictMode = false,
                 OnViolation = "warn"
             },
-            PostProcessing = new DataObfuscation.Common.Models.PostProcessingConfiguration
+            PostProcessing = new Common.Models.PostProcessingConfiguration
             {
                 GenerateReport = true,
                 ReportPath = $"reports/{piiAnalysis.DatabaseName.ToLower()}-obfuscation-{{timestamp}}.json",
@@ -108,7 +108,7 @@ public class ObfuscationConfigGenerator : IObfuscationConfigGenerator
                 GenerateSummary = true,
                 NotificationEndpoints = new List<string>()
             },
-            Performance = new DataObfuscation.Common.Models.PerformanceConfiguration
+            Performance = new Common.Models.PerformanceConfiguration
             {
                 MaxMemoryUsageMB = 4096,
                 BufferSize = 8192,
@@ -117,7 +117,7 @@ public class ObfuscationConfigGenerator : IObfuscationConfigGenerator
                 OptimizeForThroughput = true,
                 ConnectionPoolSize = 20
             },
-            Security = new DataObfuscation.Common.Models.SecurityConfiguration
+            Security = new Common.Models.SecurityConfiguration
             {
                 EncryptMappings = false,
                 EncryptionKey = null,
@@ -194,9 +194,9 @@ public class ObfuscationConfigGenerator : IObfuscationConfigGenerator
     }
 
 
-    private Dictionary<string, DataObfuscation.Common.Models.CustomDataType> GenerateCustomDataTypes(PIIAnalysisResult piiAnalysis)
+    private Dictionary<string, Common.Models.CustomDataType> GenerateCustomDataTypes(PIIAnalysisResult piiAnalysis)
     {
-        var dataTypes = new Dictionary<string, DataObfuscation.Common.Models.CustomDataType>();
+        var dataTypes = new Dictionary<string, Common.Models.CustomDataType>();
         var dataTypeUsage = new Dictionary<string, int>();
 
         // Count usage of each data type
@@ -212,10 +212,10 @@ public class ObfuscationConfigGenerator : IObfuscationConfigGenerator
         foreach (var usage in dataTypeUsage.Where(u => u.Value >= 2))
         {
             var customTypeName = $"{piiAnalysis.DatabaseName}{MapToStandardDataType(usage.Key)}";
-            dataTypes[customTypeName] = new DataObfuscation.Common.Models.CustomDataType
+            dataTypes[customTypeName] = new Common.Models.CustomDataType
             {
                 BaseType = MapToStandardDataType(usage.Key),
-                CustomSeed = "DataObfuscation2024-CrossDB-Deterministic-AU-v3.7.2",
+                CustomSeed = "PII-Sanitizer-2024-CrossDB-Deterministic-AU-v3.7.2",
                 PreserveLength = ShouldPreserveLength(usage.Key),
                 Validation = GenerateValidation(MapToStandardDataType(usage.Key)),
                 Description = $"{MapToStandardDataType(usage.Key)} with {piiAnalysis.DatabaseName}-specific seeding"
@@ -274,28 +274,28 @@ public class ObfuscationConfigGenerator : IObfuscationConfigGenerator
         };
     }
 
-    private DataObfuscation.Common.Models.ValidationConfiguration? GenerateValidation(string dataType)
+    private Common.Models.ValidationConfiguration? GenerateValidation(string dataType)
     {
         return dataType switch
         {
-            SupportedDataTypes.Email => new DataObfuscation.Common.Models.ValidationConfiguration
+            SupportedDataTypes.Email => new Common.Models.ValidationConfiguration
             {
                 Regex = @"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$",
                 MinLength = 5,
                 MaxLength = 100
             },
-            SupportedDataTypes.Phone => new DataObfuscation.Common.Models.ValidationConfiguration
+            SupportedDataTypes.Phone => new Common.Models.ValidationConfiguration
             {
                 Regex = @"^(\+61|0)[2-478]\d{8}$",
                 MinLength = 10,
                 MaxLength = 15
             },
-            SupportedDataTypes.FirstName => new DataObfuscation.Common.Models.ValidationConfiguration
+            SupportedDataTypes.FirstName => new Common.Models.ValidationConfiguration
             {
                 MinLength = 2,
                 MaxLength = 50
             },
-            SupportedDataTypes.LastName => new DataObfuscation.Common.Models.ValidationConfiguration
+            SupportedDataTypes.LastName => new Common.Models.ValidationConfiguration
             {
                 MinLength = 2,
                 MaxLength = 50

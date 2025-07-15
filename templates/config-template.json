@@ -1,0 +1,116 @@
+{
+  "$schema": "../data-obfuscation/configs/schemas/obfuscation-schema.json",
+  "Metadata": {
+    "ConfigVersion": "2.1",
+    "Description": "Template configuration for data obfuscation",
+    "CreatedBy": "Manual",
+    "CreatedDate": "2024-07-15T00:00:00Z",
+    "LastModified": "2024-07-15T00:00:00Z",
+    "MappingFileVersion": "2.1",
+    "DatabaseName": "YourDatabase"
+  },
+  "Global": {
+    "ConnectionString": "Server=localhost;Database=YourDatabase;Integrated Security=true;",
+    "GlobalSeed": "YourUniqueSecretSeed2024",
+    "BatchSize": 1000,
+    "ParallelThreads": 4,
+    "MaxCacheSize": 500000,
+    "DryRun": false,
+    "PersistMappings": true,
+    "EnableValueCaching": true,
+    "CommandTimeoutSeconds": 300,
+    "MappingCacheDirectory": "mappings/production",
+    "LogLevel": "Information",
+    "EnableProgressTracking": true
+  },
+  "DataTypes": {
+    "CompanyEmail": {
+      "BaseType": "Email",
+      "CustomSeed": "CompanyEmailSeed2024",
+      "PreserveLength": false,
+      "Validation": {
+        "Regex": "^[a-zA-Z0-9._%+-]+@yourcompany\\.com$",
+        "MinLength": 5,
+        "MaxLength": 100
+      },
+      "Description": "Company-specific email addresses"
+    }
+  },
+  "Tables": [
+    {
+      "TableName": "dbo.Employee",
+      "Schema": "dbo",
+      "Enabled": true,
+      "ProcessingOrder": 1,
+      "WhereClause": null,
+      "Columns": [
+        {
+          "ColumnName": "FirstName",
+          "DataType": "FirstName",
+          "Enabled": true,
+          "PreserveLength": false,
+          "UseCustomDataType": false,
+          "Nullable": false
+        },
+        {
+          "ColumnName": "LastName",
+          "DataType": "LastName",
+          "Enabled": true,
+          "PreserveLength": false,
+          "UseCustomDataType": false,
+          "Nullable": false
+        },
+        {
+          "ColumnName": "Email",
+          "DataType": "CompanyEmail",
+          "Enabled": true,
+          "PreserveLength": false,
+          "UseCustomDataType": true,
+          "Nullable": false
+        }
+      ]
+    }
+  ],
+  "ReferentialIntegrity": {
+    "Enabled": false,
+    "Relationships": [
+      {
+        "ParentTable": "dbo.Department",
+        "ParentColumn": "DepartmentID",
+        "ChildTable": "dbo.Employee",
+        "ChildColumn": "DepartmentID",
+        "EnforcementLevel": "Warning"
+      }
+    ],
+    "StrictMode": false,
+    "OnViolation": "warn"
+  },
+  "PostProcessing": {
+    "GenerateReport": true,
+    "ReportPath": "reports/production-obfuscation-{timestamp}.json",
+    "ValidateResults": true,
+    "BackupMappings": true,
+    "CompressMappings": false,
+    "GenerateSummary": true,
+    "NotificationEndpoints": []
+  },
+  "Performance": {
+    "MaxMemoryUsageMB": 4096,
+    "BufferSize": 8192,
+    "EnableParallelProcessing": true,
+    "MaxDegreeOfParallelism": 4,
+    "OptimizeForThroughput": true,
+    "ConnectionPoolSize": 20
+  },
+  "Security": {
+    "EncryptMappings": false,
+    "EncryptionKey": null,
+    "HashSensitiveData": false,
+    "AuditEnabled": true,
+    "AuditLogPath": "audit/production-audit-{timestamp}.log",
+    "SensitiveConfigKeys": [
+      "ConnectionString",
+      "EncryptionKey"
+    ]
+  }
+}

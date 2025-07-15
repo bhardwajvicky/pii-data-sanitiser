@@ -1,8 +1,8 @@
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
-using SchemaAnalyzer.Models;
+using AutoMappingGenerator.Models;
 
-namespace SchemaAnalyzer.Services;
+namespace AutoMappingGenerator.Services;
 
 public interface ISchemaAnalysisService
 {

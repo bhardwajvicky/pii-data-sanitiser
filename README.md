@@ -1,195 +1,166 @@
-# Data Obfuscation Solution
+# PII Data Sanitizer
 
-A comprehensive .NET 8 solution for automated database schema analysis and intelligent data obfuscation, specifically designed for handling Personally Identifiable Information (PII) in SQL Server databases.
+A high-performance, enterprise-grade solution for discovering and obfuscating personally identifiable information (PII) in SQL Server databases. Designed for cross-database deterministic obfuscation with a focus on Australian fleet management industry data.
 
-## 🎯 Solution Overview
+## 🚀 Quick Start
 
-This solution consists of two complementary tools that work together to provide end-to-end data obfuscation capabilities:
+```bash
+# 1. Clone the repository
+git clone https://github.com/bhardwajvicky/pii-data-sanitiser.git
+cd pii-data-sanitiser
 
-1. **Schema Analyzer** - Automatically discovers PII columns in databases
-2. **Data Obfuscation Engine** - Obfuscates discovered PII with realistic replacement data
+# 2. Build the solution
+dotnet build
 
-```mermaid
-graph TD
-    A[SQL Server Database] --> B[Schema Analyzer]
-    B --> C[JSON Configuration]
-    C --> D[Data Obfuscation Engine]
-    D --> E[Obfuscated Database]
-    
-    B --> F[PII Analysis Report]
-    D --> G[Processing Report]
+# 3. Analyze your database for PII
+cd auto-mapping-generator
+dotnet run "Server=localhost;Database=YourDB;Integrated Security=true;"
+
+# 4. Obfuscate the data
+cd ../data-obfuscation
+dotnet run ../JSON/YourDB-mapping.json ../JSON/YourDB-config.json
 ```
 
-## 📁 Project Structure
+## 📋 Table of Contents
 
-```
-treat-sql-db/
-├── 📄 JSON/                          # Generated configuration files
-├── 📋 Project-Docs/                  # Requirements and analysis documentation
-├── 🔍 schema-analyzer/               # Automatic PII discovery tool
-│   ├── Core/                         # Configuration generation logic
-│   ├── Models/                       # Data models and schemas
-│   ├── Services/                     # Schema analysis and PII detection
-│   └── Program.cs                    # Main application
-├── 🚀 data-obfuscation/              # Data obfuscation engine
-│   ├── Configuration/                # JSON config parsing and validation
-│   ├── Core/                         # Obfuscation engine and progress tracking
-│   ├── Data/                         # Australian data providers and SQL repository
-│   ├── Examples/                     # Usage examples and scenarios
-│   └── configs/                      # Sample configuration files
-└── 📝 README.md                      # This file
-```
+- [Overview](#overview)
+- [Features](#features)
+- [Architecture](#architecture)
+- [Installation](#installation)
+- [Usage Guide](#usage-guide)
+- [Configuration](#configuration)
+- [Generated Files & Logs](#generated-files--logs)
+- [Caching Strategy](#caching-strategy)
+- [Performance](#performance)
+- [Examples](#examples)
+- [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
 
----
+## Overview
 
-# 🔍 Schema Analyzer
-
-**Automatically discovers PII columns and generates obfuscation configurations**
+The PII Data Sanitizer provides a complete solution for:
+- **Automatic PII Discovery**: Identifies sensitive data columns using pattern matching and naming conventions
+- **Deterministic Obfuscation**: Ensures the same input always produces the same output across databases
+- **Industry-Specific Data**: Generates realistic Australian fleet management data
+- **High Performance**: Processes millions of records efficiently with parallel processing
 
 ## Features
 
-- **🔍 Intelligent PII Detection**: Pattern-based analysis with confidence scoring
-- **🧠 Machine Learning Heuristics**: Context-aware column classification
-- **📊 Comprehensive Reporting**: Detailed analysis summaries with statistics
-- **⚙️ Auto-Configuration**: Ready-to-use JSON configurations for obfuscation
-- **🔗 Relationship Discovery**: Automatic referential integrity detection
+### 🔍 Auto Mapping Generator
+- Pattern-based PII detection with confidence scoring
+- Automatic detection of 20+ data types (names, addresses, licenses, etc.)
+- Referential integrity detection
+- Configuration file generation
+- Comprehensive analysis reports
 
-## Supported PII Types
+### 🔐 Data Obfuscation Engine
+- **Deterministic Processing**: Same input → same output across all databases
+- **Australian Data Generation**: Realistic fleet industry data
+- **Smart Caching**: Selective caching for optimal performance
+- **Parallel Processing**: Up to 32 concurrent threads
+- **Progress Tracking**: Real-time status updates
+- **Dry Run Mode**: Test configurations without modifying data
+- **Failure Recovery**: Detailed failure logs and skip capabilities
 
-| PII Category | Data Types | Examples |
-|--------------|------------|----------|
-| **Personal Names** | FirstName, LastName, FullName | John Smith, Mary Johnson |
-| **Contact Info** | Email, Phone, Mobile | john@company.com, 0412 345 678 |
-| **Addresses** | Street, City, Postal Code | 123 Main St, Melbourne VIC 3000 |
-| **Business IDs** | ABN, ACN, Tax Numbers | 12 345 678 901 |
-| **Licenses** | Driver License, Permits | NSW-12345678 |
-| **Technical** | IP Addresses, URLs | 192.168.1.1, https://example.com |
-| **Free Text** | Comments, Notes, Descriptions | Potential PII in text fields |
+### 📊 Supported Data Types
+- **Personal**: FirstName, LastName, FullName
+- **Contact**: Email, Phone, Mobile
+- **Address**: AddressLine1, AddressLine2, City, State, PostCode
+- **Vehicle**: Registration, VIN, Make/Model, EngineNumber
+- **Business**: CompanyName, ABN, ACN
+- **Financial**: CreditCard, BankAccount
+- **Identifiers**: DriverLicense, EmployeeID, NationalID
+- **Geographic**: GPSCoordinate, RouteCode, DepotLocation
 
-## Quick Start
+## Architecture
+
+```
+pii-data-sanitiser/
+├── auto-mapping-generator/          # PII discovery tool
+├── data-obfuscation/         # Obfuscation engine
+├── Common/                   # Shared libraries
+├── JSON/                     # Generated configurations
+├── logs/                     # Application logs
+├── reports/                  # Processing reports
+└── mappings/                 # Value mapping cache
+```
+
+## Installation
 
 ### Prerequisites
-- .NET 8.0 SDK
-- SQL Server access
-- AdventureWorks2019 database (for demo)
+- .NET 8.0 SDK or Runtime
+- SQL Server 2016+ (or Azure SQL Database)
+- Windows, Linux, or macOS
 
-### Usage
+### Build from Source
 ```bash
-cd schema-analyzer
+# Clone repository
+git clone https://github.com/bhardwajvicky/pii-data-sanitiser.git
+cd pii-data-sanitiser
+
+# Build all projects
 dotnet build
-dotnet run
+
+# Run tests (if available)
+dotnet test
 ```
 
-### Configuration
-Pre-configured for:
-- **Server**: localhost
-- **Database**: AdventureWorks2019  
-- **Authentication**: SQL Server (sa/Count123#)
-- **Output**: ../JSON/AdventureWorks2019.json
+## Usage Guide
 
-### Expected Output
-```
-[INFO] Starting Schema Analysis for database: AdventureWorks2019
-[INFO] Found 71 tables with 503 columns total
-[INFO] Identified 12 tables with PII data containing 47 PII columns
-[INFO] Obfuscation configuration saved to: ../JSON/AdventureWorks2019.json
-[INFO] Analysis summary saved to: ../JSON/AdventureWorks2019_analysis_summary.json
+### Step 1: Analyze Your Database
+
+```bash
+cd auto-mapping-generator
+dotnet run "Server=localhost;Database=AdventureWorks;Integrated Security=true;"
 ```
 
-## Detection Algorithm
+This generates:
+- `JSON/{database}-mapping.json` - Column mapping definitions
+- `JSON/{database}-config.json` - Obfuscation configuration
+- `JSON/{database}_analysis_summary.json` - Analysis report
 
-### Confidence Scoring
-```
-Column Name Match:     +0.8 confidence
-Data Type Match:       +0.3 confidence  
-Table Context:         +0.2 confidence
-Length Validation:     +0.1 confidence
-Contextual Heuristics: +0.3 confidence
-─────────────────────────────────────
-Minimum Threshold:     0.6 for PII detection
-```
+### Step 2: Review & Customize Configuration
 
-### Pattern Examples
-```javascript
-Person Names:    *name*, *first*, *last*, *middle*, *full*
-Email Addresses: *email*, *mail*, *e_mail*, *contact*email*
-Phone Numbers:   *phone*, *mobile*, *cell*, *tel*, *fax*
-Addresses:       *address*, *street*, *city*, *suburb*, *postal*
-```
+Edit the generated config files to:
+- Enable/disable specific tables or columns
+- Adjust batch sizes and parallelism
+- Configure custom data types
+- Set up referential integrity rules
 
----
+### Step 3: Run Obfuscation
 
-# 🚀 Data Obfuscation Engine
-
-**High-performance, deterministic data obfuscation with Australian fleet industry data**
-
-## Features
-
-- **🇦🇺 Australian Data**: Realistic fleet industry data (drivers, vehicles, operators)
-- **🔄 Deterministic**: Same input always produces same output (SHA-256 seeding)
-- **⚡ High Performance**: 100,000+ rows/minute with parallel processing
-- **🔗 Referential Integrity**: Maintains relationships across tables
-- **📋 External Configuration**: Complete JSON-based control
-- **📊 Progress Tracking**: Real-time monitoring and reporting
-
-## Australian Fleet Data Types
-
-| Data Type | Description | Example Output |
-|-----------|-------------|----------------|
-| **DriverName** | Australian names with diversity | Sarah Thompson, Michael Chen |
-| **DriverLicenseNumber** | State-specific formats | NSW-12345678, VIC-87654321 |
-| **ContactEmail** | Fleet industry domains | john.smith@transport.com.au |
-| **DriverPhone** | Australian mobile format | 0412 345 678 |
-| **VehicleRegistration** | State-specific plates | ABC123 (NSW), 123ABC (VIC) |
-| **VINNumber** | 17-character vehicle ID | 1HGBH41JXMN109186 |
-| **VehicleMakeModel** | Australian fleet vehicles | Toyota Hiace, Ford Transit |
-| **OperatorName** | Transport companies | Reliable Transport, City Logistics |
-| **BusinessABN** | Australian Business Number | 12 345 678 901 |
-| **Address** | Commercial addresses | 123 Transport Way, Sydney NSW 2000 |
-| **GPSCoordinate** | Australian coordinates | -33.865143,151.209900 |
-| **RouteCode** | Route identifiers | SYD-MEL-001, R-042 |
-
-## Quick Start
-
-### Build and Run
 ```bash
 cd data-obfuscation
-dotnet build
 
-# Validate configuration
-dotnet run configs/test-config.json --validate-only
+# Dry run (no changes)
+dotnet run ../JSON/config.json --dry-run
 
-# Test run (no data changes)
-dotnet run configs/test-config.json --dry-run
-
-# Production obfuscation
-dotnet run configs/production-config.json
+# Full obfuscation
+dotnet run ../JSON/mapping.json ../JSON/config.json
 ```
 
-### Sample Configuration
+## Configuration
+
+### Basic Configuration Structure
+
 ```json
 {
-  "global": {
-    "connectionString": "Server=localhost;Database=FleetDB;Trusted_Connection=true;",
-    "globalSeed": "FleetSeed2024",
-    "batchSize": 15000,
-    "parallelThreads": 8,
-    "dryRun": false
+  "Global": {
+    "ConnectionString": "Server=...;Database=...;",
+    "GlobalSeed": "YourSecretSeed2024",
+    "BatchSize": 1000,
+    "ParallelThreads": 8,
+    "DryRun": false,
+    "EnableValueCaching": true
   },
-  "tables": [
+  "Tables": [
     {
-      "tableName": "Drivers",
-      "priority": 1,
-      "primaryKey": ["DriverID"],
-      "columns": [
+      "TableName": "Person.Person",
+      "Columns": [
         {
-          "columnName": "DriverName",
-          "dataType": "DriverName",
-          "enabled": true,
-          "fallback": {
-            "onError": "useDefault",
-            "defaultValue": "REDACTED_DRIVER"
-          }
+          "ColumnName": "FirstName",
+          "DataType": "FirstName",
+          "Enabled": true
         }
       ]
     }
@@ -197,361 +168,270 @@ dotnet run configs/production-config.json
 }
 ```
 
-## Performance Optimization
+### Key Configuration Options
 
-| Database Size | Processing Time | Throughput | Resource Usage |
-|---------------|----------------|------------|----------------|
-| 100GB | 1-3 hours | 150K rows/min | 4-8GB RAM |
-| 500GB | 4-12 hours | 200K rows/min | 8-16GB RAM |
-| 1TB+ | 8-24 hours | 250K rows/min | 16-32GB RAM |
+| Setting | Description | Default |
+|---------|-------------|---------|
+| `GlobalSeed` | Master seed for deterministic generation | Required |
+| `BatchSize` | Records per batch | 1000 |
+| `ParallelThreads` | Concurrent processing threads | 4 |
+| `MaxCacheSize` | Maximum cached mappings | 500000 |
+| `CommandTimeoutSeconds` | SQL command timeout | 300 |
+| `DryRun` | Test mode without changes | false |
 
-### Optimization Settings
+### Advanced Features
+
+#### Custom Data Types
 ```json
-{
-  "global": {
-    "batchSize": 25000,           // Larger batches for better throughput
-    "parallelThreads": 16,        // Use all CPU cores
-    "maxCacheSize": 5000000,      // Large cache for better performance
-    "enableValueCaching": true    // Essential for deterministic performance
-  }
-}
-```
-
----
-
-# 🔄 End-to-End Workflow
-
-## Complete Process
-
-### 1. **Schema Analysis**
-```bash
-cd schema-analyzer
-dotnet run
-```
-**Output**: `JSON/AdventureWorks2019.json` + analysis report
-
-### 2. **Configuration Review**
-- Review generated configuration
-- Customize data types if needed
-- Adjust batch sizes and priorities
-- Set dry-run mode for testing
-
-### 3. **Test Obfuscation**
-```bash
-cd data-obfuscation
-dotnet run ../JSON/AdventureWorks2019.json --dry-run
-```
-
-### 4. **Production Obfuscation**
-```bash
-# Backup database first
-sqlcmd -S server -Q "BACKUP DATABASE MyDB TO DISK='backup.bak'"
-
-# Run obfuscation
-dotnet run ../JSON/AdventureWorks2019.json
-```
-
-## Example Output Flow
-
-### Schema Analysis Results
-```json
-{
-  "databaseName": "AdventureWorks2019",
-  "totalTables": 71,
-  "totalColumns": 503,
-  "tablesWithPII": 12,
-  "piiColumns": 47,
-  "piiColumnsByType": {
-    "DriverName": 15,
-    "ContactEmail": 8,
-    "DriverPhone": 6,
-    "Address": 12
-  }
-}
-```
-
-### Generated Configuration
-```json
-{
-  "metadata": {
-    "description": "Auto-generated obfuscation configuration for AdventureWorks2019",
-    "createdBy": "SchemaAnalyzer"
-  },
-  "global": {
-    "globalSeed": "AdventureWorks2019Seed20240713",
-    "batchSize": 15000,
-    "dryRun": true
-  },
-  "tables": [
-    {
-      "tableName": "Person",
-      "priority": 1,
-      "columns": [
-        {
-          "columnName": "FirstName",
-          "dataType": "DriverName",
-          "enabled": true
-        }
-      ]
-    }
-  ]
-}
-```
-
-### Obfuscation Results
-```
-[INFO] Starting data obfuscation process
-[INFO] Processing table: Person.Person
-[INFO] Table Person.Person: 19,972/19,972 (100.0%) - 1,331 rows/sec
-[INFO] Completed table Person.Person: 19,972 rows in 00:00:15
-[INFO] Overall progress: 12/12 tables (100.0%) - 12 completed, 0 failed
-[INFO] Tables processed: 12, Rows processed: 84,315
-[INFO] Duration: 00:01:23
-```
-
----
-
-# 🛠️ Configuration Options
-
-## Schema Analyzer Configuration
-
-### Custom Connection String
-```csharp
-// In Program.cs
-var connectionString = "Server=your-server;Database=your-db;User Id=user;Password=pass;";
-```
-
-### Custom PII Detection Rules
-```csharp
-// In PIIDetectionService.cs
-new PIIDetectionRule
-{
-    DataType = PIIDataType.Custom,
-    ObfuscationDataType = "CustomDataType",
-    ColumnNamePatterns = new List<string> { "*custom*", "*pattern*" },
-    BaseConfidence = 0.8
-}
-```
-
-## Data Obfuscation Configuration
-
-### Environment-Specific Configs
-```bash
-configs/
-├── development-config.json    # Limited rows, dry-run enabled
-├── staging-config.json       # Subset processing
-├── production-config.json    # Full production settings
-└── emergency-config.json     # Critical data only
-```
-
-### Custom Data Types
-```json
-{
-  "dataTypes": {
-    "ExecutiveDriverName": {
-      "baseType": "DriverName",
-      "customSeed": "ExecutiveSeed2024",
-      "preserveLength": true,
-      "validation": {
-        "minLength": 10,
-        "maxLength": 50
-      }
+"DataTypes": {
+  "CompanyEmail": {
+    "BaseType": "Email",
+    "CustomSeed": "CompanySeed2024",
+    "Validation": {
+      "Regex": "^[a-zA-Z0-9.]+@company\\.com$"
     }
   }
 }
 ```
 
-### Referential Integrity
+#### Conditional Processing
+```json
+"Tables": [{
+  "TableName": "Sales.Orders",
+  "WhereClause": "OrderDate >= '2024-01-01'",
+  "ProcessingOrder": 1
+}]
+```
+
+#### Referential Integrity
+```json
+"ReferentialIntegrity": {
+  "Enabled": true,
+  "Relationships": [{
+    "ParentTable": "Person.Person",
+    "ParentColumn": "BusinessEntityID",
+    "ChildTable": "Person.EmailAddress",
+    "ChildColumn": "BusinessEntityID"
+  }]
+}
+```
+
+## Generated Files & Logs
+
+### 📁 Log Files
+
+#### Application Logs
+- **Location**: `logs/obfuscation-{date}.log`
+- **Content**: Runtime information, warnings, errors
+- **Rotation**: Daily
+- **Example**:
+```
+[14:32:15 INF] Starting data obfuscation process
+[14:32:15 INF] Processing table: Person.Person
+[14:32:16 INF] Batch 1000-2000 completed in 1.2s
+```
+
+#### Failure Logs
+- **Location**: `logs/failures/{database}_failures_{timestamp}.log`
+- **Content**: Detailed failure information per row
+- **Format**: Timestamp | Table | Keys | Error
+- **Example**:
+```
+2024-07-15T14:32:16Z | Person.Address | AddressID=123 | Duplicate key violation
+```
+
+### 📊 Reports
+
+#### Obfuscation Reports
+- **Location**: `reports/{database}-obfuscation-{timestamp}.json`
+- **Content**: Processing statistics and summary
 ```json
 {
-  "referentialIntegrity": {
-    "enabled": true,
-    "relationships": [
-      {
-        "name": "DriverConsistency",
-        "primaryTable": "Drivers",
-        "primaryColumn": "DriverName",
-        "relatedMappings": [
-          {"table": "VehicleAssignments", "column": "DriverName", "relationship": "exact"}
-        ]
-      }
-    ]
+  "Database": "AdventureWorks",
+  "StartTime": "2024-07-15T14:32:15Z",
+  "Duration": "00:05:23",
+  "TablesProcessed": 8,
+  "TotalRows": 99046,
+  "RowsPerSecond": 307.2,
+  "Success": true
+}
+```
+
+#### Schema Analysis Reports
+- **Location**: `JSON/{database}_analysis_summary.json`
+- **Content**: PII detection results and statistics
+
+### 💾 Mapping Files
+
+- **Location**: `mappings/{environment}/mappings_{timestamp}.json`
+- **Purpose**: Cache deterministic mappings for consistency
+- **Size**: Varies based on unique values (typically 1-100MB)
+
+### 🔍 Audit Logs
+
+- **Location**: `audit/{database}-audit-{timestamp}.log`
+- **Content**: Security and compliance audit trail
+- **Enable**: Set `"AuditEnabled": true` in config
+
+## Caching Strategy
+
+### Smart Selective Caching
+
+The system implements intelligent caching to optimize performance while managing memory:
+
+#### ✅ Cached (Low-Cardinality)
+- **Names**: ~5,000 first names, ~50,000 last names
+- **Geographic**: Cities, states, countries, postcodes
+- **Categories**: Company names, departments, job titles
+- **Benefits**: 100-1000x performance for repeated values
+
+#### ❌ Not Cached (High-Cardinality)
+- **Addresses**: Street addresses, GPS coordinates
+- **Identifiers**: SSN, licenses, VINs, employee IDs
+- **Contact**: Email addresses, phone numbers
+- **Financial**: Credit cards, bank accounts
+- **Benefits**: Prevents memory exhaustion on large datasets
+
+### Cache Statistics Example
+```
+Cache statistics - Total entries: 3,568
+  LastName: 1,206 entries
+  FirstName: 1,018 entries
+  PostCode: 661 entries
+  City: 575 entries
+```
+
+### Performance Impact
+- **1TB Database**: Only ~200MB cache vs potential 5GB+
+- **Memory Savings**: 95%+ reduction in cache size
+- **Speed**: Maintains high performance for common values
+
+## Performance
+
+### Benchmarks
+
+| Database Size | Tables | Total Rows | Time | Speed |
+|--------------|--------|------------|------|-------|
+| 100MB | 5 | 50K | 30s | 1,667 rows/sec |
+| 1GB | 15 | 500K | 5 min | 1,667 rows/sec |
+| 10GB | 25 | 5M | 45 min | 1,852 rows/sec |
+| 100GB | 50 | 50M | 7 hours | 1,984 rows/sec |
+
+### Optimization Tips
+
+1. **Batch Size**: Larger batches (5000-10000) for simple tables
+2. **Parallelism**: Match CPU cores (8-16 threads typical)
+3. **Network**: Ensure low latency to SQL Server
+4. **Indexing**: Maintain indexes on primary keys
+5. **Cache**: Pre-warm cache with common values
+
+## Examples
+
+### Example 1: Basic Obfuscation
+```bash
+# Simple obfuscation with defaults
+dotnet run config.json
+```
+
+### Example 2: Dry Run with Custom Batch Size
+```bash
+# Test configuration without changes
+dotnet run config.json --dry-run
+```
+
+### Example 3: Two-File Configuration
+```bash
+# Separate mapping and config files
+dotnet run mapping.json config.json
+```
+
+### Example 4: Parallel Processing
+```json
+{
+  "Global": {
+    "BatchSize": 5000,
+    "ParallelThreads": 16
   }
 }
 ```
 
----
+## Troubleshooting
 
-# 🔒 Security & Compliance
+### Common Issues
 
-## Data Protection Features
-
-- **🔐 Deterministic Generation**: SHA-256 seeding ensures consistency
-- **🚫 No Hardcoded Values**: All mappings externalized to JSON
-- **🔄 Reversible Process**: Mapping files enable data restoration if needed
-- **👁️ Audit Trail**: Complete logging of all operations
-- **🧪 Dry Run Mode**: Safe testing without data modification
-
-## Best Practices
-
-### Pre-Deployment
+#### 1. Duplicate Key Violations
+**Problem**: "Cannot insert duplicate key row"
+**Solution**: Ensure cache is cleared between runs:
 ```bash
-# 1. Always backup first
-sqlcmd -S server -Q "BACKUP DATABASE MyDB TO DISK='backup.bak'"
-
-# 2. Validate configuration
-DataObfuscation.exe config.json --validate-only
-
-# 3. Test with dry run
-DataObfuscation.exe config.json --dry-run
-
-# 4. Process in stages for large databases
-DataObfuscation.exe stage1-config.json  # Non-critical tables
-DataObfuscation.exe stage2-config.json  # Supporting tables  
-DataObfuscation.exe stage3-config.json  # Core tables
+rm -rf mappings/{environment}/*.json
 ```
 
-### Monitoring
-- Real-time progress tracking
-- Performance metrics logging
-- Error handling and recovery
-- Resource usage monitoring
-
----
-
-# 🚀 Deployment Guide
-
-## System Requirements
-
-### Minimum
-- .NET 8.0 Runtime
-- 4GB RAM
-- 2 CPU cores
-- SQL Server 2016+
-
-### Recommended (1TB+ databases)
-- 16+ CPU cores
-- 32-64GB RAM
-- NVMe SSD storage
-- 10Gbps+ network
-- SQL Server 2019+
-
-## Docker Deployment
-
-### Dockerfile
-```dockerfile
-FROM mcr.microsoft.com/dotnet/runtime:8.0
-COPY data-obfuscation/bin/Release/net8.0/publish/ /app/
-WORKDIR /app
-ENTRYPOINT ["dotnet", "DataObfuscation.dll"]
-```
-
-### Usage
-```bash
-docker build -t data-obfuscation .
-docker run -v $(pwd)/configs:/app/configs -v $(pwd)/JSON:/app/JSON data-obfuscation /app/JSON/config.json
-```
-
-## Production Scaling
-
-### Multiple Servers
-```
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│  App Server 1   │    │  App Server 2    │    │   Database      │
-│  (Tables 1-300) │◄──►│  (Tables 301-600)│◄──►│   Server        │
-└─────────────────┘    └──────────────────┘    │                 │
-                                               │  Optimized for  │
-┌──────────────────┐                          │  High I/O       │
-│  App Server 3    │                          │                 │
-│  (Tables 601-900)│◄─────────────────────────►│                 │
-└──────────────────┘                          └─────────────────┘
-```
-
-### Expected Performance
-- **Single Server**: 8-24 hours for 1TB
-- **3 Servers**: 3-8 hours for 1TB
-- **Database Load**: 30-50% CPU, high I/O
-- **Network Usage**: 50-200 Mbps sustained
-
----
-
-# 📚 Troubleshooting
-
-## Common Issues
-
-### Build Issues
-```bash
-# Update packages if build fails
-dotnet restore
-dotnet clean
-dotnet build
-```
-
-### Connection Issues
-```
-Error: Cannot connect to database
-Solutions:
-- Verify connection string format
-- Check SQL Server authentication
-- Ensure network connectivity
-- Validate database exists
-```
-
-### Performance Issues
+#### 2. Memory Issues
+**Problem**: OutOfMemoryException
+**Solution**: Reduce cache size or disable caching for large fields:
 ```json
-{
-  "solutions": [
-    "Increase batchSize (5000-50000)",
-    "Optimize parallelThreads (CPU cores)",
-    "Enable maxCacheSize (1M-10M)",
-    "Temporarily disable database indexes"
-  ]
-}
+"MaxCacheSize": 100000,
+"EnableValueCaching": false
 ```
 
-### Memory Issues
+#### 3. Slow Performance
+**Problem**: Processing < 1000 rows/sec
+**Solution**: 
+- Increase batch size and threads
+- Check network latency
+- Verify indexes exist
+
+#### 4. Connection Timeouts
+**Problem**: "Timeout expired"
+**Solution**: Increase timeout:
 ```json
-{
-  "solutions": [
-    "Reduce maxCacheSize",
-    "Lower parallelThreads", 
-    "Use smaller customBatchSize",
-    "Process tables sequentially"
-  ]
-}
+"CommandTimeoutSeconds": 600
 ```
 
-## Getting Help
+### Debug Mode
 
-- **Documentation**: Check README files in each project
-- **Examples**: Review configs/ and Examples/ directories
-- **Logs**: Enable detailed logging for diagnostics
-- **Issues**: Report problems with full error logs
+Enable detailed logging:
+```json
+"LogLevel": "Debug"
+```
 
----
+Check logs at:
+- Application: `logs/obfuscation-{date}.log`
+- Failures: `logs/failures/{db}_failures_{timestamp}.log`
 
-# 📄 License
+## Contributing
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
-# 🤝 Contributing
+We welcome contributions! Please:
 
 1. Fork the repository
-2. Create feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit changes (`git commit -m 'Add AmazingFeature'`)
-4. Push to branch (`git push origin feature/AmazingFeature`)
-5. Open Pull Request
+2. Create a feature branch
+3. Make your changes
+4. Add tests if applicable
+5. Submit a pull request
+
+### Development Setup
+
+```bash
+# Clone your fork
+git clone https://github.com/yourusername/pii-data-sanitiser.git
+
+# Add upstream remote
+git remote add upstream https://github.com/bhardwajvicky/pii-data-sanitiser.git
+
+# Create feature branch
+git checkout -b feature/your-feature
+```
+
+## License
+
+This project is licensed under the MIT License - see LICENSE file for details.
+
+## Support
+
+- **Issues**: [GitHub Issues](https://github.com/bhardwajvicky/pii-data-sanitiser/issues)
+- **Documentation**: See `/docs` folder
+- **Examples**: See `/data-obfuscation/Examples/`
 
 ---
 
-# 📞 Support
-
-For questions, issues, or feature requests:
-- Create an issue in the repository
-- Review the troubleshooting sections
-- Check the example configurations
-- Enable detailed logging for diagnostics
-
-**Built with ❤️ for secure, compliant data obfuscation**
+Built with ❤️ for data privacy and compliance

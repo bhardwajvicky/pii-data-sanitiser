@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  # Auto Mapping Generator Service
+  auto-mapping-generator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pii-auto-mapping-generator
+    working_dir: /app/auto-mapping-generator
+    command: ["AutoMappingGenerator.dll", "${CONNECTION_STRING}"]
+    volumes:
+      - ./JSON:/app/JSON
+      - ./logs:/app/logs
+    environment:
+      - CONNECTION_STRING=${CONNECTION_STRING}
+      - DOTNET_ENVIRONMENT=Production
+    networks:
+      - pii-network
+
+  # Data Obfuscation Service
+  data-obfuscation:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pii-data-obfuscation
+    working_dir: /app/data-obfuscation
+    command: ["DataObfuscation.dll", "/app/JSON/mapping.json", "/app/JSON/config.json"]
+    volumes:
+      - ./JSON:/app/JSON
+      - ./logs:/app/logs
+      - ./reports:/app/reports
+      - ./mappings:/app/mappings
+      - ./audit:/app/audit
+    environment:
+      - DOTNET_ENVIRONMENT=Production
+      - GLOBAL_SEED=${GLOBAL_SEED}
+      - DRY_RUN=${DRY_RUN:-false}
+    depends_on:
+      - auto-mapping-generator
+    networks:
+      - pii-network
+
+  # Optional: SQL Server for testing
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: pii-test-sqlserver
+    environment:
+      - ACCEPT_EULA=Y
+      - MSSQL_SA_PASSWORD=${SA_PASSWORD:-YourStrong!Password123}
+      - MSSQL_PID=Developer
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqlserver-data:/var/opt/mssql
+    networks:
+      - pii-network
+    profiles:
+      - with-database
+
+networks:
+  pii-network:
+    driver: bridge
+
+volumes:
+  sqlserver-data:
+    driver: local

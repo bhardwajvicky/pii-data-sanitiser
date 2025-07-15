@@ -3,11 +3,11 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Configuration;
 using Serilog;
-using SchemaAnalyzer.Core;
-using SchemaAnalyzer.Services;
-using SchemaAnalyzer.Models;
+using AutoMappingGenerator.Core;
+using AutoMappingGenerator.Services;
+using AutoMappingGenerator.Models;
 
-namespace SchemaAnalyzer;
+namespace AutoMappingGenerator;
 
 class Program
 {

@@ -1,4 +1,4 @@
-namespace DataObfuscation.Common.DataTypes;
+namespace Common.DataTypes;
 
 /// <summary>
 /// Maps database column names to appropriate address component data types
