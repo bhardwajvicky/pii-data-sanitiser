@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
+using DataObfuscation.Configuration;
 
 namespace DataObfuscation.Data;
 
@@ -52,7 +53,7 @@ public class DeterministicUKProvider : IDeterministicUKProvider
         {
             var faker = CreateFaker(originalValue, customSeed);
             return faker.Name.FirstName();
-        });
+        }, shouldCache: true); // First names are low cardinality
     }
 
     public string GetLastName(string originalValue, string? customSeed = null)
@@ -61,7 +62,7 @@ public class DeterministicUKProvider : IDeterministicUKProvider
         {
             var faker = CreateFaker(originalValue, customSeed);
             return faker.Name.LastName();
-        });
+        }, shouldCache: true); // Last names are low cardinality
     }
 
     public string GetFullName(string originalValue, string? customSeed = null)
@@ -70,7 +71,7 @@ public class DeterministicUKProvider : IDeterministicUKProvider
         {
             var faker = CreateFaker(originalValue, customSeed);
             return faker.Name.FullName();
-        });
+        }, shouldCache: true); // Full names have moderate cardinality
     }
 
     public string GetEmail(string originalValue, string? customSeed = null)
@@ -82,7 +83,7 @@ public class DeterministicUKProvider : IDeterministicUKProvider
             var lastName = faker.Name.LastName().ToLower();
             var domain = faker.PickRandom(EmailDomains);
             return $"{firstName}.{lastName}@{domain}";
-        });
+        }, shouldCache: false); // Emails are unique
     }
 
     public string GetPhone(string originalValue, string? customSeed = null)
@@ -103,7 +104,7 @@ public class DeterministicUKProvider : IDeterministicUKProvider
                 var areaCode = faker.PickRandom(new[] { "0121", "0161", "0113", "0141", "0151", "0117", "0191" });
                 return $"{areaCode} {faker.Random.Number(100, 999)} {faker.Random.Number(1000, 9999)}";
             }
-        });
+        }, shouldCache: false); // Phone numbers are unique
     }
 
     public string GetAddress(string originalValue, string? customSeed = null)
@@ -116,7 +117,7 @@ public class DeterministicUKProvider : IDeterministicUKProvider
             var city = faker.Address.City();
             var postcode = GetUKPostcode(originalValue, customSeed);
             return $"{houseNumber} {street}, {city} {postcode}";
-        });
+        }, shouldCache: false); // Addresses are unique
     }
 
     public string GetCreditCard(string originalValue, string? customSeed = null)
@@ -125,7 +126,7 @@ public class DeterministicUKProvider : IDeterministicUKProvider
         {
             var faker = CreateFaker(originalValue, customSeed);
             return faker.Finance.CreditCardNumber();
-        });
+        }, shouldCache: false); // Credit cards are unique
     }
 
     public string GetNationalInsuranceNumber(string originalValue, string? customSeed = null)
@@ -134,7 +135,7 @@ public class DeterministicUKProvider : IDeterministicUKProvider
         {
             var faker = CreateFaker(originalValue, customSeed);
             return faker.Finance.Nino(); // UK-specific extension
-        });
+        }, shouldCache: false); // National Insurance numbers are unique
     }
 
     public string GetBankSortCode(string originalValue, string? customSeed = null)
@@ -143,7 +144,7 @@ public class DeterministicUKProvider : IDeterministicUKProvider
         {
             var faker = CreateFaker(originalValue, customSeed);
             return faker.Finance.SortCode(); // UK-specific extension
-        });
+        }, shouldCache: false); // Bank sort codes are better not cached
     }
 
     public string GetUKPostcode(string originalValue, string? customSeed = null)
@@ -157,7 +158,7 @@ public class DeterministicUKProvider : IDeterministicUKProvider
             var number2 = faker.Random.Number(0, 9);
             var letters2 = faker.Random.String2(2, "ABDEFGHJLNPQRSTUWXYZ");
             return $"{letters1}{numbers1} {number2}{letters2}";
-        });
+        }, shouldCache: true); // UK postcodes are limited
     }
 
     public string GetCompanyName(string originalValue, string? customSeed = null)
@@ -168,7 +169,7 @@ public class DeterministicUKProvider : IDeterministicUKProvider
             var baseName = faker.Company.CompanyName();
             var suffix = faker.PickRandom(CompanySuffixes);
             return $"{baseName} {suffix}";
-        });
+        }, shouldCache: true); // Company names are limited
     }
 
     public string GetVehicleRegistration(string originalValue, string? customSeed = null)
@@ -180,7 +181,7 @@ public class DeterministicUKProvider : IDeterministicUKProvider
             var fromDate = new DateTime(2001, 1, 1);
             var toDate = DateTime.Now;
             return faker.Vehicle.GbRegistrationPlate(fromDate, toDate);
-        });
+        }, shouldCache: false); // Vehicle registrations are unique
     }
 
     private Faker CreateFaker(string originalValue, string? customSeed)
@@ -193,14 +194,23 @@ public class DeterministicUKProvider : IDeterministicUKProvider
         return new Faker("en_GB") { Random = new Randomizer(seedValue) };
     }
 
-    private string GetOrCreateMapping(string key, string? customSeed, Func<string> generator)
+    private string GetOrCreateMapping(string key, string? customSeed, Func<string> generator, bool shouldCache = true)
     {
         var finalKey = customSeed != null ? $"{key}_{customSeed}" : key;
         
+        // If caching is disabled for this type, generate directly
+        if (!shouldCache)
+        {
+            var generated = generator();
+            _logger.LogDebug("Generated mapping (not cached): {Key} -> {Value}", finalKey, generated);
+            return generated;
+        }
+        
+        // Use cache for low-cardinality fields
         return _mappingCache.GetOrAdd(finalKey, _ =>
         {
             var generated = generator();
-            _logger.LogDebug("Generated mapping: {Key} -> {Value}", finalKey, generated);
+            _logger.LogDebug("Generated mapping (cached): {Key} -> {Value}", finalKey, generated);
             return generated;
         });
     }
