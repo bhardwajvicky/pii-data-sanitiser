@@ -1,0 +1,41 @@
+{
+  "global": {
+    "connectionString": "Server=localhost;Database=TestDB;Trusted_Connection=true;",
+    "globalSeed": "TestDateSeed2025",
+    "batchSize": 100,
+    "parallelThreads": 1,
+    "dryRun": true,
+    "persistMappings": false
+  },
+  "tables": [
+    {
+      "tableName": "Person",
+      "priority": 1,
+      "primaryKey": "PersonId",
+      "columns": [
+        {
+          "columnName": "DateOfBirth",
+          "dataType": "DateOfBirth",
+          "enabled": true,
+          "preserveLength": false
+        },
+        {
+          "columnName": "HireDate",
+          "dataType": "Date",
+          "enabled": true,
+          "preserveLength": false
+        },
+        {
+          "columnName": "AnniversaryDate",
+          "dataType": "Date",
+          "enabled": true,
+          "preserveLength": false
+        }
+      ]
+    }
+  ],
+  "postProcessing": {
+    "generateReport": true,
+    "reportPath": "reports/date-test-{timestamp}.json"
+  }
+}

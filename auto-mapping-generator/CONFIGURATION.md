@@ -24,13 +24,35 @@ The Auto Mapping Generator uses appsettings.json files for configuration. This g
 - **Environment Variable**: `AUTO_MAPPING_CONNECTION_STRING`
 - **Description**: SQL Server connection string for the database to analyze
 
-### Claude API Key
+### LLM Provider Configuration
+
+#### Provider Selection
+```json
+"LLMProvider": "Claude" // or "AzureOpenAI"
+```
+- **Required**: No (auto-detects based on API keys)
+- **Options**: `Claude`, `AzureOpenAI`
+- **Description**: Explicitly set which LLM provider to use
+
+#### Claude API Key
 ```json
 "ClaudeApiKey": "sk-ant-api..."
 ```
-- **Required**: No (only for enhanced PII detection)
+- **Required**: No (required if using Claude)
 - **Environment Variable**: `CLAUDE_API_KEY`
 - **Description**: API key for Claude-based analysis
+
+#### Azure OpenAI Configuration
+```json
+"AzureOpenAiApiKey": "your-azure-key",
+"AzureOpenAI": {
+  "Endpoint": "https://your-resource.openai.azure.com",
+  "DeploymentName": "gpt-4"
+}
+```
+- **Required**: No (required if using Azure OpenAI)
+- **Environment Variable**: `AZURE_OPENAI_API_KEY`
+- **Description**: Configuration for Azure OpenAI service
 
 ### Logging
 ```json
@@ -134,6 +156,7 @@ Sensitive values should use environment variables:
 |----------|-------------|
 | AUTO_MAPPING_CONNECTION_STRING | Database connection |
 | CLAUDE_API_KEY | Claude API key |
+| AZURE_OPENAI_API_KEY | Azure OpenAI API key |
 | OBFUSCATION_GLOBAL_SEED | Global seed value |
 | ASPNETCORE_ENVIRONMENT | Environment name |
 

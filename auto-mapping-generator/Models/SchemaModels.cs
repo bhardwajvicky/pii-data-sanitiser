@@ -25,8 +25,20 @@ public class ColumnInfo
     public bool IsNullable { get; set; }
     public bool IsPrimaryKey { get; set; }
     public bool IsForeignKey { get; set; }
+    public bool IsIdentity { get; set; }
+    public bool IsComputed { get; set; }
     public string? DefaultValue { get; set; }
     public int OrdinalPosition { get; set; }
+    
+    // Extended properties
+    public byte? NumericPrecision { get; set; }
+    public byte? NumericScale { get; set; }
+    public string? CharacterSet { get; set; }
+    public string? Collation { get; set; }
+    public bool IsRowGuid { get; set; }
+    public bool IsFileStream { get; set; }
+    public bool IsSparse { get; set; }
+    public bool IsXmlDocument { get; set; }
 }
 
 public class PIIAnalysisResult
@@ -81,6 +93,8 @@ public enum PIIDataType
     Comments,
     Notes,
     Description,
+    Date,
+    DateOfBirth,
     Custom
 }
 

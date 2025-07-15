@@ -22,6 +22,8 @@ public interface IDeterministicUKProvider
     string GetUKPostcode(string originalValue, string? customSeed = null);
     string GetCompanyName(string originalValue, string? customSeed = null);
     string GetVehicleRegistration(string originalValue, string? customSeed = null);
+    DateTime GetDate(DateTime originalValue, string? customSeed = null);
+    DateTime GetDateOfBirth(DateTime originalValue, string? customSeed = null);
     
     Dictionary<string, string> GetAllMappings();
     void ClearCache();
@@ -182,6 +184,40 @@ public class DeterministicUKProvider : IDeterministicUKProvider
             var toDate = DateTime.Now;
             return faker.Vehicle.GbRegistrationPlate(fromDate, toDate);
         }, shouldCache: false); // Vehicle registrations are unique
+    }
+
+    public DateTime GetDate(DateTime originalValue, string? customSeed = null)
+    {
+        // Generate a deterministic date based on the original value
+        var seed = GetHashedSeed(originalValue.ToString("yyyy-MM-dd HH:mm:ss"), customSeed);
+        var faker = new Faker("en_GB") { Random = new Randomizer(seed) };
+        
+        // Generate a date within a reasonable range (last 50 years)
+        var minDate = DateTime.Now.AddYears(-50);
+        var maxDate = DateTime.Now.AddYears(-1);
+        
+        return faker.Date.Between(minDate, maxDate);
+    }
+
+    public DateTime GetDateOfBirth(DateTime originalValue, string? customSeed = null)
+    {
+        // Generate a deterministic date of birth based on the original value
+        var seed = GetHashedSeed(originalValue.ToString("yyyy-MM-dd"), customSeed);
+        var faker = new Faker("en_GB") { Random = new Randomizer(seed) };
+        
+        // Generate a date of birth for someone between 18 and 80 years old
+        var maxDate = DateTime.Now.AddYears(-18); // At least 18 years old
+        var minDate = DateTime.Now.AddYears(-80); // At most 80 years old
+        
+        return faker.Date.Between(minDate, maxDate).Date; // Return date only, no time
+    }
+
+    private int GetHashedSeed(string originalValue, string? customSeed)
+    {
+        var combinedSeed = customSeed ?? _globalSeed;
+        var seedString = $"{combinedSeed}_{originalValue}";
+        var seedBytes = SHA256.HashData(Encoding.UTF8.GetBytes(seedString));
+        return BitConverter.ToInt32(seedBytes, 0);
     }
 
     private Faker CreateFaker(string originalValue, string? customSeed)

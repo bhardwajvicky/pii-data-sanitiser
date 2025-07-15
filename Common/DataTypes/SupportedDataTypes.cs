@@ -67,6 +67,16 @@ public static class SupportedDataTypes
     
     #endregion
 
+    #region Date Information
+    
+    /// <summary>Date values like birthdate, anniversary date, hire date, etc.</summary>
+    public const string Date = "Date";
+    
+    /// <summary>Date of Birth specifically</summary>
+    public const string DateOfBirth = "DateOfBirth";
+    
+    #endregion
+
     #region Financial Information
     
     /// <summary>Credit card numbers</summary>
@@ -156,6 +166,9 @@ public static class SupportedDataTypes
         // Address Components
         FullAddress, AddressLine1, AddressLine2, City, Suburb, State, StateAbbr, 
         PostCode, ZipCode, Country, Address,
+        
+        // Date Information
+        Date, DateOfBirth,
         
         // Financial
         CreditCard, NINO, NationalInsuranceNumber, SortCode, BankSortCode,

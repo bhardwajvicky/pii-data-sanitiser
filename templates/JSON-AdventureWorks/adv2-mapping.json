@@ -1,0 +1,160 @@
+{
+  "Metadata": {
+    "ConfigVersion": "2.1",
+    "Description": "Table and column mappings for adv2 database",
+    "CreatedBy": "AutoMappingGenerator",
+    "CreatedDate": "2025-07-15T12:39:47.353786Z",
+    "LastModified": "2025-07-15T12:39:47.353805Z",
+    "DatabaseName": "adv2",
+    "TotalTables": 6,
+    "TotalColumns": 10,
+    "TotalPiiColumns": 10
+  },
+  "Tables": [
+    {
+      "TableName": "Employee",
+      "Schema": "HumanResources",
+      "FullTableName": "HumanResources.Employee",
+      "PrimaryKey": [
+        "BusinessEntityID"
+      ],
+      "Columns": [
+        {
+          "ColumnName": "NationalIDNumber",
+          "DataType": "LicenseNumber",
+          "Enabled": true,
+          "IsNullable": false,
+          "PreserveLength": true
+        },
+        {
+          "ColumnName": "BirthDate",
+          "DataType": "DateOfBirth",
+          "Enabled": true,
+          "IsNullable": false,
+          "PreserveLength": false
+        }
+      ],
+      "TotalRows": 290,
+      "Enabled": true
+    },
+    {
+      "TableName": "PersonPhone",
+      "Schema": "Person",
+      "FullTableName": "Person.PersonPhone",
+      "PrimaryKey": [
+        "BusinessEntityID",
+        "PhoneNumber",
+        "PhoneNumberTypeID"
+      ],
+      "Columns": [
+        {
+          "ColumnName": "PhoneNumber",
+          "DataType": "Phone",
+          "Enabled": true,
+          "IsNullable": false,
+          "PreserveLength": true
+        }
+      ],
+      "TotalRows": 19972,
+      "Enabled": true
+    },
+    {
+      "TableName": "Address",
+      "Schema": "Person",
+      "FullTableName": "Person.Address",
+      "PrimaryKey": [
+        "AddressID"
+      ],
+      "Columns": [
+        {
+          "ColumnName": "AddressLine1",
+          "DataType": "AddressLine1",
+          "Enabled": true,
+          "IsNullable": false,
+          "PreserveLength": false
+        },
+        {
+          "ColumnName": "AddressLine2",
+          "DataType": "AddressLine1",
+          "Enabled": true,
+          "IsNullable": true,
+          "PreserveLength": false
+        },
+        {
+          "ColumnName": "City",
+          "DataType": "City",
+          "Enabled": true,
+          "IsNullable": false,
+          "PreserveLength": false
+        },
+        {
+          "ColumnName": "PostalCode",
+          "DataType": "PostCode",
+          "Enabled": true,
+          "IsNullable": false,
+          "PreserveLength": false
+        }
+      ],
+      "TotalRows": 19614,
+      "Enabled": true
+    },
+    {
+      "TableName": "EmailAddress",
+      "Schema": "Person",
+      "FullTableName": "Person.EmailAddress",
+      "PrimaryKey": [
+        "BusinessEntityID",
+        "EmailAddressID"
+      ],
+      "Columns": [
+        {
+          "ColumnName": "EmailAddress",
+          "DataType": "AddressLine1",
+          "Enabled": true,
+          "IsNullable": true,
+          "PreserveLength": false
+        }
+      ],
+      "TotalRows": 19972,
+      "Enabled": true
+    },
+    {
+      "TableName": "CreditCard",
+      "Schema": "Sales",
+      "FullTableName": "Sales.CreditCard",
+      "PrimaryKey": [
+        "CreditCardID"
+      ],
+      "Columns": [
+        {
+          "ColumnName": "CardNumber",
+          "DataType": "CreditCard",
+          "Enabled": true,
+          "IsNullable": false,
+          "PreserveLength": true
+        }
+      ],
+      "TotalRows": 19118,
+      "Enabled": true
+    },
+    {
+      "TableName": "ProductReview",
+      "Schema": "Production",
+      "FullTableName": "Production.ProductReview",
+      "PrimaryKey": [
+        "ProductReviewID"
+      ],
+      "Columns": [
+        {
+          "ColumnName": "EmailAddress",
+          "DataType": "AddressLine1",
+          "Enabled": true,
+          "IsNullable": false,
+          "PreserveLength": false
+        }
+      ],
+      "TotalRows": 4,
+      "Enabled": true
+    }
+  ]
+}

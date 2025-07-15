@@ -179,7 +179,7 @@ public class ObfuscationConfigGenerator : IObfuscationConfigGenerator
     {
         return originalDataType switch
         {
-            "DriverName" => SupportedDataTypes.FirstName,
+            "DriverName" => SupportedDataTypes.FullName,
             "AustralianFullName" => SupportedDataTypes.FullName,
             "ContactEmail" => SupportedDataTypes.Email,
             "DriverPhone" => SupportedDataTypes.Phone,

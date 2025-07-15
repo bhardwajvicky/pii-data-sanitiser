@@ -1,0 +1,70 @@
+{
+  "Metadata": {
+    "ConfigVersion": "2.1",
+    "Description": "Obfuscation configuration for adv2 database",
+    "CreatedBy": "AutoMappingGenerator",
+    "CreatedDate": "2025-07-15T12:39:47.356479Z",
+    "LastModified": "2025-07-15T12:39:47.356497Z",
+    "MappingFileVersion": "2.1",
+    "DatabaseName": "adv2"
+  },
+  "Global": {
+    "ConnectionString": "Server=test-db-server-try.database.windows.net;Database=adv2;User Id=vikas;Password=Count123#;Encrypt=true;",
+    "GlobalSeed": "PII-Sanitizer-2024-CrossDB-Deterministic-AU-v3.7.2",
+    "BatchSize": 1000,
+    "ParallelThreads": 8,
+    "MaxCacheSize": 500000,
+    "DryRun": false,
+    "PersistMappings": true,
+    "EnableValueCaching": true,
+    "CommandTimeoutSeconds": 600,
+    "MappingCacheDirectory": "mappings/adv2",
+    "LogLevel": "Information",
+    "EnableProgressTracking": true
+  },
+  "DataTypes": {
+    "adv2AddressLine1": {
+      "BaseType": "AddressLine1",
+      "CustomSeed": "PII-Sanitizer-2024-CrossDB-Deterministic-AU-v3.7.2",
+      "PreserveLength": false,
+      "Validation": null,
+      "Formatting": null,
+      "Transformation": null,
+      "Description": "AddressLine1 with adv2-specific seeding"
+    }
+  },
+  "ReferentialIntegrity": {
+    "Enabled": false,
+    "Relationships": [],
+    "StrictMode": false,
+    "OnViolation": "warn"
+  },
+  "PostProcessing": {
+    "GenerateReport": true,
+    "ReportPath": "reports/adv2-obfuscation-{timestamp}.json",
+    "ValidateResults": true,
+    "BackupMappings": true,
+    "CompressMappings": false,
+    "GenerateSummary": true,
+    "NotificationEndpoints": []
+  },
+  "Performance": {
+    "MaxMemoryUsageMB": 4096,
+    "BufferSize": 8192,
+    "EnableParallelProcessing": true,
+    "MaxDegreeOfParallelism": 4,
+    "OptimizeForThroughput": true,
+    "ConnectionPoolSize": 20
+  },
+  "Security": {
+    "EncryptMappings": false,
+    "EncryptionKey": null,
+    "HashSensitiveData": false,
+    "AuditEnabled": true,
+    "AuditLogPath": "audit/adv2-audit-{timestamp}.log",
+    "SensitiveConfigKeys": [
+      "ConnectionString",
+      "EncryptionKey"
+    ]
+  }
+}

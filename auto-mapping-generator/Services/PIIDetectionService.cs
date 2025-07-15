@@ -199,9 +199,11 @@ public class PIIDetectionService : IPIIDetectionService
                 ObfuscationDataType = "DriverName",
                 ColumnNamePatterns = new List<string>
                 {
-                    "*name*", "*first*", "*last*", "*middle*", "*full*", "*display*",
-                    "*fname*", "*lname*", "*firstname*", "*lastname*", "*fullname*",
-                    "*contact*name*", "*person*", "*employee*name*", "*customer*name*"
+                    "*firstname*", "*first_name*", "*fname*", "*givenname*", "*given_name*",
+                    "*lastname*", "*last_name*", "*lname*", "*surname*", "*familyname*", "*family_name*",
+                    "*fullname*", "*full_name*", "*displayname*", "*display_name*",
+                    "*personname*", "*person_name*", "*employeename*", "*employee_name*",
+                    "*customername*", "*customer_name*", "*contactname*", "*contact_name*"
                 },
                 SqlDataTypes = new List<string> { "varchar", "nvarchar", "char", "nchar", "text", "ntext" },
                 TableNamePatterns = new List<string> { "*person*", "*employee*", "*customer*", "*contact*", "*user*" },
@@ -334,6 +336,38 @@ public class PIIDetectionService : IPIIDetectionService
                 TableNamePatterns = new List<string> { "*log*", "*audit*", "*session*", "*connection*" },
                 BaseConfidence = 0.9,
                 PreserveLength = true
+            },
+
+            // Dates (DOB, Anniversary, etc.)
+            new PIIDetectionRule
+            {
+                DataType = PIIDataType.DateOfBirth,
+                ObfuscationDataType = "DateOfBirth",
+                ColumnNamePatterns = new List<string>
+                {
+                    "*dob*", "*dateofbirth*", "*date_of_birth*", "*birthdate*", "*birth_date*",
+                    "*birthday*", "*born*"
+                },
+                SqlDataTypes = new List<string> { "date", "datetime", "datetime2", "smalldatetime" },
+                TableNamePatterns = new List<string> { "*person*", "*employee*", "*customer*", "*user*", "*member*" },
+                BaseConfidence = 0.9,
+                PreserveLength = false
+            },
+
+            // General Dates (Anniversary, Hire Date, etc.)
+            new PIIDetectionRule
+            {
+                DataType = PIIDataType.Date,
+                ObfuscationDataType = "Date",
+                ColumnNamePatterns = new List<string>
+                {
+                    "*anniversary*", "*hire*date*", "*start*date*", "*join*date*", "*registration*date*",
+                    "*expiry*date*", "*expiration*date*", "*issue*date*"
+                },
+                SqlDataTypes = new List<string> { "date", "datetime", "datetime2", "smalldatetime" },
+                TableNamePatterns = new List<string> { "*", }, // Any table
+                BaseConfidence = 0.7,
+                PreserveLength = false
             }
         };
     }

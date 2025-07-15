@@ -4,6 +4,7 @@ using DataObfuscation.Data;
 using Common.DataTypes;
 using DataObfuscation.Services;
 using System.Diagnostics;
+using System;
 
 namespace DataObfuscation.Core;
 
@@ -287,9 +288,9 @@ public class ObfuscationEngine : IObfuscationEngine
                     if (!row.ContainsKey(columnConfig.ColumnName))
                         continue;
 
-                    var originalValue = row[columnConfig.ColumnName]?.ToString();
+                    var originalValue = row[columnConfig.ColumnName];
                     
-                    if (string.IsNullOrEmpty(originalValue))
+                    if (originalValue == null || originalValue == DBNull.Value)
                     {
                         if (columnConfig.Conditions?.OnlyIfNotNull == true)
                             continue;
@@ -297,7 +298,7 @@ public class ObfuscationEngine : IObfuscationEngine
 
                     try
                     {
-                        var obfuscatedValue = GenerateObfuscatedValue(originalValue ?? "", columnConfig, globalConfig);
+                        var obfuscatedValue = GenerateObfuscatedValue(originalValue, columnConfig, globalConfig);
                         obfuscatedRow[columnConfig.ColumnName] = obfuscatedValue;
                     }
                     catch (Exception ex)
@@ -320,72 +321,103 @@ public class ObfuscationEngine : IObfuscationEngine
         });
     }
 
-    private string GenerateObfuscatedValue(string originalValue, ColumnConfiguration columnConfig, ObfuscationConfiguration globalConfig)
+    private object? GenerateObfuscatedValue(object? originalValue, ColumnConfiguration columnConfig, ObfuscationConfiguration globalConfig)
     {
+        if (originalValue == null || originalValue == DBNull.Value)
+            return originalValue;
+
         var customDataType = globalConfig.DataTypes.GetValueOrDefault(columnConfig.DataType);
         var customSeed = customDataType?.CustomSeed;
         
         // Use BaseType if this is a custom data type, otherwise use the DataType directly
         var dataTypeToMatch = customDataType?.BaseType ?? columnConfig.DataType;
 
+        // Handle Date types
+        if (dataTypeToMatch == SupportedDataTypes.Date || dataTypeToMatch == SupportedDataTypes.DateOfBirth)
+        {
+            DateTime dateValue;
+            if (originalValue is DateTime dt)
+            {
+                dateValue = dt;
+            }
+            else if (DateTime.TryParse(originalValue.ToString(), out var parsedDate))
+            {
+                dateValue = parsedDate;
+            }
+            else
+            {
+                throw new InvalidOperationException($"Cannot convert value '{originalValue}' to DateTime for column {columnConfig.ColumnName}");
+            }
+
+            return dataTypeToMatch switch
+            {
+                SupportedDataTypes.Date => _dataProvider.GetDate(dateValue, customSeed),
+                SupportedDataTypes.DateOfBirth => _dataProvider.GetDateOfBirth(dateValue, customSeed),
+                _ => dateValue
+            };
+        }
+
+        // For all other types, convert to string
+        var originalStringValue = originalValue.ToString() ?? "";
+        
         var obfuscatedValue = dataTypeToMatch switch
         {
             // Core Personal Data Types
-            SupportedDataTypes.FirstName => _dataProvider.GetFirstName(originalValue, customSeed),
-            SupportedDataTypes.LastName => _dataProvider.GetLastName(originalValue, customSeed),
-            SupportedDataTypes.FullName => _dataProvider.GetDriverName(originalValue, customSeed),
+            SupportedDataTypes.FirstName => _dataProvider.GetFirstName(originalStringValue, customSeed),
+            SupportedDataTypes.LastName => _dataProvider.GetLastName(originalStringValue, customSeed),
+            SupportedDataTypes.FullName => _dataProvider.GetDriverName(originalStringValue, customSeed),
             
             // Contact Information
-            SupportedDataTypes.Email => _dataProvider.GetContactEmail(originalValue, customSeed),
-            SupportedDataTypes.Phone => _dataProvider.GetDriverPhone(originalValue, customSeed),
+            SupportedDataTypes.Email => _dataProvider.GetContactEmail(originalStringValue, customSeed),
+            SupportedDataTypes.Phone => _dataProvider.GetDriverPhone(originalStringValue, customSeed),
             
             // Address Components
-            SupportedDataTypes.FullAddress => _dataProvider.GetFullAddress(originalValue, customSeed),
-            SupportedDataTypes.AddressLine1 => _dataProvider.GetAddressLine1(originalValue, customSeed),
-            SupportedDataTypes.AddressLine2 => _dataProvider.GetAddressLine2(originalValue, customSeed),
-            SupportedDataTypes.City => _dataProvider.GetCity(originalValue, customSeed),
-            SupportedDataTypes.Suburb => _dataProvider.GetSuburb(originalValue, customSeed),
-            SupportedDataTypes.State => _dataProvider.GetState(originalValue, customSeed),
-            SupportedDataTypes.StateAbbr => _dataProvider.GetStateAbbr(originalValue, customSeed),
-            SupportedDataTypes.PostCode or SupportedDataTypes.ZipCode => _dataProvider.GetPostCode(originalValue, customSeed),
-            SupportedDataTypes.Country => _dataProvider.GetCountry(originalValue, customSeed),
-            SupportedDataTypes.Address => _dataProvider.GetAddress(originalValue, customSeed), // Legacy support
+            SupportedDataTypes.FullAddress => _dataProvider.GetFullAddress(originalStringValue, customSeed),
+            SupportedDataTypes.AddressLine1 => _dataProvider.GetAddressLine1(originalStringValue, customSeed),
+            SupportedDataTypes.AddressLine2 => _dataProvider.GetAddressLine2(originalStringValue, customSeed),
+            SupportedDataTypes.City => _dataProvider.GetCity(originalStringValue, customSeed),
+            SupportedDataTypes.Suburb => _dataProvider.GetSuburb(originalStringValue, customSeed),
+            SupportedDataTypes.State => _dataProvider.GetState(originalStringValue, customSeed),
+            SupportedDataTypes.StateAbbr => _dataProvider.GetStateAbbr(originalStringValue, customSeed),
+            SupportedDataTypes.PostCode or SupportedDataTypes.ZipCode => _dataProvider.GetPostCode(originalStringValue, customSeed),
+            SupportedDataTypes.Country => _dataProvider.GetCountry(originalStringValue, customSeed),
+            SupportedDataTypes.Address => _dataProvider.GetAddress(originalStringValue, customSeed), // Legacy support
             
             // Financial Information
-            SupportedDataTypes.CreditCard => _dataProvider.GetCreditCard(originalValue, customSeed),
-            SupportedDataTypes.NINO or SupportedDataTypes.NationalInsuranceNumber => _dataProvider.GetDriverLicenseNumber(originalValue, customSeed), // Placeholder for now
-            SupportedDataTypes.SortCode or SupportedDataTypes.BankSortCode => _dataProvider.GetRouteCode(originalValue, customSeed), // Placeholder for now
+            SupportedDataTypes.CreditCard => _dataProvider.GetCreditCard(originalStringValue, customSeed),
+            SupportedDataTypes.NINO or SupportedDataTypes.NationalInsuranceNumber => _dataProvider.GetDriverLicenseNumber(originalStringValue, customSeed), // Placeholder for now
+            SupportedDataTypes.SortCode or SupportedDataTypes.BankSortCode => _dataProvider.GetRouteCode(originalStringValue, customSeed), // Placeholder for now
             
             // Identification & Licenses
-            SupportedDataTypes.LicenseNumber => _dataProvider.GetDriverLicenseNumber(originalValue, customSeed),
+            SupportedDataTypes.LicenseNumber => _dataProvider.GetDriverLicenseNumber(originalStringValue, customSeed),
             
             // Business Information
-            SupportedDataTypes.CompanyName => _dataProvider.GetOperatorName(originalValue, customSeed),
-            SupportedDataTypes.BusinessABN => _dataProvider.GetBusinessABN(originalValue, customSeed),
-            SupportedDataTypes.BusinessACN => _dataProvider.GetBusinessACN(originalValue, customSeed),
+            SupportedDataTypes.CompanyName => _dataProvider.GetOperatorName(originalStringValue, customSeed),
+            SupportedDataTypes.BusinessABN => _dataProvider.GetBusinessABN(originalStringValue, customSeed),
+            SupportedDataTypes.BusinessACN => _dataProvider.GetBusinessACN(originalStringValue, customSeed),
             
             // Vehicle Information
-            SupportedDataTypes.VehicleRegistration => _dataProvider.GetVehicleRegistration(originalValue, customSeed),
-            SupportedDataTypes.VINNumber => _dataProvider.GetVINNumber(originalValue, customSeed),
-            SupportedDataTypes.VehicleMakeModel => _dataProvider.GetVehicleMakeModel(originalValue, customSeed),
-            SupportedDataTypes.EngineNumber => _dataProvider.GetEngineNumber(originalValue, customSeed),
+            SupportedDataTypes.VehicleRegistration => _dataProvider.GetVehicleRegistration(originalStringValue, customSeed),
+            SupportedDataTypes.VINNumber => _dataProvider.GetVINNumber(originalStringValue, customSeed),
+            SupportedDataTypes.VehicleMakeModel => _dataProvider.GetVehicleMakeModel(originalStringValue, customSeed),
+            SupportedDataTypes.EngineNumber => _dataProvider.GetEngineNumber(originalStringValue, customSeed),
             
             // Location & Geographic
-            SupportedDataTypes.GPSCoordinate => _dataProvider.GetGPSCoordinate(originalValue, customSeed),
-            SupportedDataTypes.RouteCode => _dataProvider.GetRouteCode(originalValue, customSeed),
-            SupportedDataTypes.DepotLocation => _dataProvider.GetDepotLocation(originalValue, customSeed),
+            SupportedDataTypes.GPSCoordinate => _dataProvider.GetGPSCoordinate(originalStringValue, customSeed),
+            SupportedDataTypes.RouteCode => _dataProvider.GetRouteCode(originalStringValue, customSeed),
+            SupportedDataTypes.DepotLocation => _dataProvider.GetDepotLocation(originalStringValue, customSeed),
             
             // UK-Specific Types
-            SupportedDataTypes.UKPostcode => _dataProvider.GetPostCode(originalValue, customSeed), // Placeholder for now
+            SupportedDataTypes.UKPostcode => _dataProvider.GetPostCode(originalStringValue, customSeed), // Placeholder for now
             
             _ => throw new NotSupportedException($"Data type '{dataTypeToMatch}' is not supported. Supported types: {SupportedDataTypes.GetAllSupportedTypesString()}")
         };
 
-        if (columnConfig.PreserveLength && obfuscatedValue.Length != originalValue.Length)
+        if (columnConfig.PreserveLength && obfuscatedValue.Length != originalStringValue.Length)
         {
-            obfuscatedValue = obfuscatedValue.Length > originalValue.Length 
-                ? obfuscatedValue[..originalValue.Length]
-                : obfuscatedValue.PadRight(originalValue.Length, 'X');
+            obfuscatedValue = obfuscatedValue.Length > originalStringValue.Length 
+                ? obfuscatedValue[..originalStringValue.Length]
+                : obfuscatedValue.PadRight(originalStringValue.Length, 'X');
         }
 
         return obfuscatedValue;

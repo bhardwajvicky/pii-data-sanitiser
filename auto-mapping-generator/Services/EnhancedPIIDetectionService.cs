@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using Microsoft.Data.SqlClient;
 using AutoMappingGenerator.Models;
 using Common.DataTypes;
 
@@ -7,64 +6,57 @@ namespace AutoMappingGenerator.Services;
 
 public interface IEnhancedPIIDetectionService
 {
-    Task<List<PIIColumn>> IdentifyPIIColumnsAsync(DatabaseSchema schema, string connectionString);
+    Task<PIIAnalysisResult> IdentifyPIIColumnsAsync(DatabaseSchema schema);
 }
 
 public class EnhancedPIIDetectionService : IEnhancedPIIDetectionService
 {
-    private readonly IClaudeApiService _claudeApiService;
+    private readonly ILLMService _llmService;
     private readonly ISchemaAnalysisService _fallbackPIIService;
     private readonly ILogger<EnhancedPIIDetectionService> _logger;
-    private readonly HashSet<string> _clrDependentTables = new();
 
     public EnhancedPIIDetectionService(
-        IClaudeApiService claudeApiService,
+        ILLMService llmService,
         ISchemaAnalysisService fallbackPIIService,
         ILogger<EnhancedPIIDetectionService> logger)
     {
-        _claudeApiService = claudeApiService;
+        _llmService = llmService;
         _fallbackPIIService = fallbackPIIService;
         _logger = logger;
     }
 
-    public async Task<List<PIIColumn>> IdentifyPIIColumnsAsync(DatabaseSchema schema, string connectionString)
+    public async Task<PIIAnalysisResult> IdentifyPIIColumnsAsync(DatabaseSchema schema)
     {
-        _logger.LogInformation("Starting enhanced PII detection with Claude API integration");
+        _logger.LogInformation("Starting enhanced PII detection with {Provider} (schema-only)", _llmService.ProviderName);
 
-        // Step 1: Use Claude API to analyze schema structure
-        var claudePIIColumns = await _claudeApiService.AnalyzeSchemaPIIAsync(schema);
+        // Step 1: Use LLM API to analyze schema structure ONLY
+        var llmPIIColumns = await _llmService.AnalyzeSchemaPIIAsync(schema);
 
-        // Step 2: If Claude API didn't return results, fall back to pattern-based detection
-        if (!claudePIIColumns.Any())
+        // Step 2: If LLM API didn't return results, fall back to pattern-based detection
+        if (!llmPIIColumns.Any())
         {
-            _logger.LogWarning("Claude API returned no results, falling back to pattern-based detection");
+            _logger.LogWarning("{Provider} returned no results, falling back to pattern-based detection", _llmService.ProviderName);
             var fallbackResult = await _fallbackPIIService.IdentifyPIIColumnsAsync(schema);
             
-            // Convert pattern-based results to Claude-compatible format
-            claudePIIColumns = ConvertToClaudeFormat(fallbackResult.TablesWithPII);
+            // Convert pattern-based results to LLM-compatible format
+            llmPIIColumns = ConvertToLLMFormat(fallbackResult.TablesWithPII);
         }
 
-        // Step 3: Enhance Claude results with actual database metadata
-        var enhancedPIIColumns = await EnhanceWithDatabaseMetadataAsync(claudePIIColumns, schema, connectionString);
+        // Step 3: Enhance LLM results with schema metadata (no data fetching)
+        var enhancedPIIColumns = EnhanceWithSchemaMetadata(llmPIIColumns, schema);
 
-        // Step 4: Analyze sample data for refined PII type detection and filter out CLR-dependent tables
-        var finalPIIColumns = await AnalyzeSampleDataAsync(enhancedPIIColumns, connectionString);
+        // Step 4: Apply data type validation and refinement based on schema only
+        var finalPIIColumns = RefineBasedOnSchemaOnly(enhancedPIIColumns);
 
-        // Step 5: Filter out CLR-dependent tables that cannot be processed by the obfuscation engine
-        var processablePIIColumns = FilterOutCLRDependentTables(finalPIIColumns);
+        _logger.LogInformation("Enhanced PII detection completed. Found {Count} PII columns", finalPIIColumns.Count);
 
-        _logger.LogInformation("Enhanced PII detection completed. Found {Count} PII columns ({FilteredCount} after CLR filtering)", 
-            finalPIIColumns.Count, processablePIIColumns.Count);
-
-        return processablePIIColumns;
+        // Convert to PIIAnalysisResult format
+        return ConvertToPIIAnalysisResult(finalPIIColumns, schema);
     }
 
-    private async Task<List<PIIColumn>> EnhanceWithDatabaseMetadataAsync(
-        List<PIIColumn> claudeColumns, 
-        DatabaseSchema schema, 
-        string connectionString)
+    private List<PIIColumn> EnhanceWithSchemaMetadata(List<PIIColumn> claudeColumns, DatabaseSchema schema)
     {
-        _logger.LogInformation("Enhancing Claude results with database metadata");
+        _logger.LogInformation("Enhancing LLM results with schema metadata");
 
         var enhancedColumns = new List<PIIColumn>();
 
@@ -79,6 +71,19 @@ public class EnhancedPIIDetectionService : IEnhancedPIIDetectionService
                 claudeColumn.MaxLength = actualColumn.MaxLength;
                 claudeColumn.IsNullable = actualColumn.IsNullable;
                 
+                // Add extended properties to detection reasons
+                var extendedInfo = new List<string>();
+                if (actualColumn.IsIdentity) extendedInfo.Add("Identity column");
+                if (actualColumn.IsComputed) extendedInfo.Add("Computed column");
+                if (actualColumn.IsForeignKey) extendedInfo.Add("Foreign key");
+                if (actualColumn.IsPrimaryKey) extendedInfo.Add("Primary key");
+                if (actualColumn.DefaultValue != null) extendedInfo.Add($"Has default: {actualColumn.DefaultValue}");
+                
+                if (extendedInfo.Any())
+                {
+                    claudeColumn.DetectionReasons.Add($"Column properties: {string.Join(", ", extendedInfo)}");
+                }
+
                 // Validate that the PII type makes sense for the SQL data type
                 if (IsValidPIITypeForSqlType(claudeColumn.DataType, actualColumn.SqlDataType))
                 {
@@ -102,222 +107,264 @@ public class EnhancedPIIDetectionService : IEnhancedPIIDetectionService
         return enhancedColumns;
     }
 
-    private async Task<List<PIIColumn>> AnalyzeSampleDataAsync(List<PIIColumn> piiColumns, string connectionString)
+    private List<PIIColumn> RefineBasedOnSchemaOnly(List<PIIColumn> piiColumns)
     {
-        _logger.LogInformation("Analyzing sample data for {Count} PII columns", piiColumns.Count);
+        _logger.LogInformation("Refining PII detection based on schema analysis only");
 
-        var finalColumns = new List<PIIColumn>();
+        var refinedColumns = new List<PIIColumn>();
 
-        using var connection = new SqlConnection(connectionString);
-        await connection.OpenAsync();
-
-        foreach (var piiColumn in piiColumns)
+        foreach (var column in piiColumns)
         {
-            try
-            {
-                var sampleData = await GetSampleDataAsync(connection, piiColumn.TableName, piiColumn.ColumnName);
-                
-                if (sampleData.Any())
-                {
-                    var recommendations = await _claudeApiService.AnalyzeSampleDataAsync(
-                        piiColumn.TableName, piiColumn.ColumnName, sampleData);
+            // Apply schema-based refinements
+            var refined = ApplySchemaBasedRefinements(column);
+            
+            // Adjust confidence based on schema characteristics
+            refined.ConfidenceScore = CalculateSchemaBasedConfidence(refined);
+            refined.Confidence = refined.ConfidenceScore; // Keep both for compatibility
 
-                    if (recommendations.Any())
-                    {
-                        var bestRecommendation = recommendations.OrderByDescending(r => r.Confidence).First();
-                        
-                        // Update PII column with Claude's refined analysis
-                        piiColumn.DataType = bestRecommendation.PIIType;
-                        piiColumn.PreserveLength = bestRecommendation.PreserveLength;
-                        piiColumn.Confidence = Math.Max(piiColumn.Confidence, bestRecommendation.Confidence);
-                        
-                        _logger.LogDebug("Refined {Table}.{Column} to {PIIType} (confidence: {Confidence})",
-                            piiColumn.TableName, piiColumn.ColumnName, piiColumn.DataType, piiColumn.Confidence);
-                    }
-                }
-
-                finalColumns.Add(piiColumn);
-            }
-            catch (Exception ex)
+            if (refined.ConfidenceScore >= 0.5) // Minimum threshold
             {
-                _logger.LogWarning(ex, "Failed to analyze sample data for {Table}.{Column}", 
-                    piiColumn.TableName, piiColumn.ColumnName);
-                
-                // Keep the column but mark it with lower confidence
-                piiColumn.Confidence *= 0.8;
-                finalColumns.Add(piiColumn);
+                refinedColumns.Add(refined);
+                _logger.LogDebug("Refined {Table}.{Column} to {PIIType} (confidence: {Confidence})",
+                    refined.TableName, refined.ColumnName, refined.DataType, refined.ConfidenceScore);
             }
         }
 
-        return finalColumns;
+        return refinedColumns;
     }
 
-    private async Task<List<object?>> GetSampleDataAsync(SqlConnection connection, string tableName, string columnName)
+    private PIIColumn ApplySchemaBasedRefinements(PIIColumn column)
     {
-        var sampleData = new List<object?>();
-
-        try
+        // Refine based on column characteristics without looking at data
+        var columnNameLower = column.ColumnName.ToLower();
+        
+        // Email refinement
+        if (column.DataType == "Email" || columnNameLower.Contains("email"))
         {
-            var sql = $@"
-                SELECT TOP 10 [{columnName}]
-                FROM {FormatTableName(tableName)}
-                WHERE [{columnName}] IS NOT NULL
-                ORDER BY NEWID()"; // Random sampling
-
-            using var command = new SqlCommand(sql, connection);
-            using var reader = await command.ExecuteReaderAsync();
-
-            while (await reader.ReadAsync())
+            if (column.MaxLength >= 50 && column.MaxLength <= 320)
             {
-                var value = reader.IsDBNull(0) ? null : reader.GetValue(0);
-                sampleData.Add(value);
+                column.DataType = "Email";
+                column.DetectionReasons.Add("Column length appropriate for email (50-320 chars)");
             }
         }
-        catch (SqlException ex) when (ex.Number == 10347) // CLR not enabled
+
+        // Phone number refinement
+        if (column.DataType == "PhoneNumber" || columnNameLower.Contains("phone") || columnNameLower.Contains("mobile"))
         {
-            _logger.LogInformation("Table {Table} has CLR dependencies - marking as non-processable", tableName);
-            
-            // Mark this table as CLR-dependent so it can be filtered out later
-            _clrDependentTables.Add(tableName);
-            
-            // For CLR tables, try a simpler query without ORDER BY NEWID() which can trigger CLR issues
-            try
+            if (column.MaxLength >= 10 && column.MaxLength <= 20)
             {
-                var simpleSql = $@"
-                    SELECT TOP 10 [{columnName}]
-                    FROM {FormatTableName(tableName)}
-                    WHERE [{columnName}] IS NOT NULL";
-
-                using var simpleCommand = new SqlCommand(simpleSql, connection);
-                using var simpleReader = await simpleCommand.ExecuteReaderAsync();
-
-                while (await simpleReader.ReadAsync())
-                {
-                    var value = simpleReader.IsDBNull(0) ? null : simpleReader.GetValue(0);
-                    sampleData.Add(value);
-                }
-                
-                _logger.LogDebug("Successfully retrieved sample data using simplified query for {Table}.{Column}", tableName, columnName);
-            }
-            catch (SqlException innerEx) when (innerEx.Number == 10347)
-            {
-                _logger.LogInformation("CLR table {Table} cannot be queried - will be excluded from configuration", tableName);
-            }
-            catch (Exception innerEx)
-            {
-                _logger.LogWarning("Unexpected error querying CLR table {Table} - will be excluded from configuration", tableName);
+                column.DataType = "PhoneNumber";
+                column.PreserveLength = true;
+                column.DetectionReasons.Add("Column length appropriate for phone (10-20 chars)");
             }
         }
-        catch (Exception ex)
+
+        // Address component refinement
+        if (columnNameLower.Contains("address") || columnNameLower.Contains("street"))
         {
-            _logger.LogWarning(ex, "Failed to get sample data for {Table}.{Column}", tableName, columnName);
+            column.DataType = "AddressLine1";
+            column.DetectionReasons.Add("Column name indicates street address");
+        }
+        else if (columnNameLower.Contains("city") || columnNameLower.Contains("suburb"))
+        {
+            column.DataType = "City";
+            column.DetectionReasons.Add("Column name indicates city/suburb");
+        }
+        else if (columnNameLower.Contains("state") || columnNameLower.Contains("province"))
+        {
+            column.DataType = "State";
+            column.DetectionReasons.Add("Column name indicates state/province");
+        }
+        else if (columnNameLower.Contains("postcode") || columnNameLower.Contains("zip"))
+        {
+            column.DataType = "PostCode";
+            column.PreserveLength = true;
+            column.DetectionReasons.Add("Column name indicates postal code");
         }
 
-        return sampleData;
+        // Name refinement
+        if (columnNameLower.Contains("firstname") || columnNameLower.Contains("first_name"))
+        {
+            column.DataType = "FirstName";
+            column.DetectionReasons.Add("Column name indicates first name");
+        }
+        else if (columnNameLower.Contains("lastname") || columnNameLower.Contains("last_name"))
+        {
+            column.DataType = "LastName";
+            column.DetectionReasons.Add("Column name indicates last name");
+        }
+        else if (columnNameLower.Contains("fullname") || columnNameLower.Contains("full_name"))
+        {
+            column.DataType = "FullName";
+            column.DetectionReasons.Add("Column name indicates full name");
+        }
+
+        return column;
     }
 
-    private static ColumnInfo? FindColumnInSchema(string tableName, string columnName, DatabaseSchema schema)
+    private double CalculateSchemaBasedConfidence(PIIColumn column)
     {
+        var confidence = column.ConfidenceScore;
+
+        // Boost confidence for exact matches
+        var columnNameLower = column.ColumnName.ToLower();
+        
+        if (columnNameLower == "email" || columnNameLower == "emailaddress")
+            confidence = Math.Min(confidence + 0.2, 1.0);
+        
+        if (columnNameLower == "phone" || columnNameLower == "phonenumber" || columnNameLower == "mobile")
+            confidence = Math.Min(confidence + 0.2, 1.0);
+        
+        if (columnNameLower == "firstname" || columnNameLower == "lastname" || columnNameLower == "fullname")
+            confidence = Math.Min(confidence + 0.2, 1.0);
+
+        // Reduce confidence for generic columns
+        if (columnNameLower.Contains("description") || columnNameLower.Contains("comment") || columnNameLower.Contains("note"))
+            confidence *= 0.7;
+
+        // Note: PIIColumn doesn't have IsIdentity or IsPrimaryKey properties
+        // These would need to be checked from the actual ColumnInfo in the schema
+
+        return confidence;
+    }
+
+    private ColumnInfo? FindColumnInSchema(string tableName, string columnName, DatabaseSchema schema)
+    {
+        // Handle table name with or without schema prefix
         var parts = tableName.Split('.');
-        if (parts.Length != 2) return null;
-
-        var schemaName = parts[0];
-        var tableNameOnly = parts[1];
+        string schemaName, tableNameOnly;
+        
+        if (parts.Length == 2)
+        {
+            schemaName = parts[0];
+            tableNameOnly = parts[1];
+        }
+        else
+        {
+            schemaName = "dbo"; // Default schema
+            tableNameOnly = tableName;
+        }
 
         var table = schema.Tables.FirstOrDefault(t => 
-            t.Schema.Equals(schemaName, StringComparison.OrdinalIgnoreCase) &&
+            t.Schema.Equals(schemaName, StringComparison.OrdinalIgnoreCase) && 
             t.TableName.Equals(tableNameOnly, StringComparison.OrdinalIgnoreCase));
+
+        if (table == null)
+        {
+            // Try without schema
+            table = schema.Tables.FirstOrDefault(t => 
+                t.TableName.Equals(tableNameOnly, StringComparison.OrdinalIgnoreCase));
+        }
 
         return table?.Columns.FirstOrDefault(c => 
             c.ColumnName.Equals(columnName, StringComparison.OrdinalIgnoreCase));
     }
 
-    private static bool IsValidPIITypeForSqlType(string piiType, string sqlDataType)
+    private bool IsValidPIITypeForSqlType(string piiType, string sqlType)
     {
-        // First validate that the PII type is supported
-        if (!SupportedDataTypes.IsSupported(piiType))
-        {
-            return false;
-        }
-
-        var sqlTypeLower = sqlDataType.ToLower();
-
-        return piiType switch
-        {
-            // String-based data types
-            SupportedDataTypes.FirstName or SupportedDataTypes.LastName or SupportedDataTypes.FullName or 
-            SupportedDataTypes.Email or SupportedDataTypes.Phone or
-            SupportedDataTypes.FullAddress or SupportedDataTypes.AddressLine1 or SupportedDataTypes.AddressLine2 or
-            SupportedDataTypes.City or SupportedDataTypes.Suburb or SupportedDataTypes.State or SupportedDataTypes.StateAbbr or
-            SupportedDataTypes.PostCode or SupportedDataTypes.ZipCode or SupportedDataTypes.Country or
-            SupportedDataTypes.CompanyName or SupportedDataTypes.LicenseNumber or
-            SupportedDataTypes.VehicleRegistration or SupportedDataTypes.VINNumber or SupportedDataTypes.VehicleMakeModel or
-            SupportedDataTypes.RouteCode or SupportedDataTypes.DepotLocation or
-            SupportedDataTypes.NINO or SupportedDataTypes.NationalInsuranceNumber or SupportedDataTypes.SortCode or
-            SupportedDataTypes.UKPostcode or SupportedDataTypes.Address => 
-                sqlTypeLower.Contains("varchar") || sqlTypeLower.Contains("char") || sqlTypeLower.Contains("text"),
-            
-            // Credit card numbers - typically stored as varchar
-            SupportedDataTypes.CreditCard => 
-                sqlTypeLower.Contains("varchar") || sqlTypeLower.Contains("char"),
-            
-            // Business identifiers - typically varchar/char
-            SupportedDataTypes.BusinessABN or SupportedDataTypes.BusinessACN or SupportedDataTypes.EngineNumber => 
-                sqlTypeLower.Contains("varchar") || sqlTypeLower.Contains("char"),
-            
-            // GPS coordinates - can be various numeric or text formats
-            SupportedDataTypes.GPSCoordinate => 
-                sqlTypeLower.Contains("varchar") || sqlTypeLower.Contains("decimal") || 
-                sqlTypeLower.Contains("float") || sqlTypeLower.Contains("geography") || sqlTypeLower.Contains("geometry"),
-            
-            _ => false // Reject unknown types
-        };
-    }
-
-    private static string FormatTableName(string tableName)
-    {
-        if (tableName.Contains('.') && !tableName.StartsWith('['))
-        {
-            var parts = tableName.Split('.');
-            if (parts.Length == 2)
-            {
-                return $"[{parts[0]}].[{parts[1]}]";
-            }
-        }
+        var sqlTypeLower = sqlType.ToLower();
         
-        return tableName.StartsWith('[') ? tableName : $"[{tableName}]";
+        // Text-based PII types require string SQL types
+        var textPiiTypes = new[] { "FirstName", "LastName", "FullName", "Email", "PhoneNumber", 
+            "AddressLine1", "AddressLine2", "City", "State", "PostCode", "CompanyName" };
+        
+        if (textPiiTypes.Contains(piiType))
+        {
+            return sqlTypeLower.Contains("char") || sqlTypeLower.Contains("text");
+        }
+
+        // Numeric PII types
+        if (piiType == "CreditCardNumber" || piiType == "DriverLicenseNumber")
+        {
+            return sqlTypeLower.Contains("char") || sqlTypeLower.Contains("text") || 
+                   sqlTypeLower.Contains("numeric") || sqlTypeLower.Contains("bigint");
+        }
+
+        // Date-based PII types
+        if (piiType == "DateOfBirth" || piiType == "Date")
+        {
+            return sqlTypeLower.Contains("date") || sqlTypeLower.Contains("datetime");
+        }
+
+        return true; // Allow by default
     }
 
-    private List<PIIColumn> ConvertToClaudeFormat(List<TableWithPII> tablesWithPII)
+    private List<PIIColumn> ConvertToLLMFormat(List<TableWithPII> tablesWithPII)
     {
         var claudeColumns = new List<PIIColumn>();
-
+        
         foreach (var table in tablesWithPII)
         {
             foreach (var piiColumn in table.PIIColumns)
             {
-                // Set the TableName for Claude compatibility
                 piiColumn.TableName = table.FullName;
-                piiColumn.Confidence = piiColumn.ConfidenceScore;
                 claudeColumns.Add(piiColumn);
             }
         }
-
+        
         return claudeColumns;
     }
-
-    private List<PIIColumn> FilterOutCLRDependentTables(List<PIIColumn> piiColumns)
+    
+    private PIIAnalysisResult ConvertToPIIAnalysisResult(List<PIIColumn> piiColumns, DatabaseSchema schema)
     {
-        var filtered = piiColumns.Where(column => !_clrDependentTables.Contains(column.TableName)).ToList();
+        var tablesWithPII = new List<TableWithPII>();
         
-        var excludedCount = piiColumns.Count - filtered.Count;
-        if (excludedCount > 0)
+        // Group PII columns by table
+        var piiColumnsByTable = piiColumns.GroupBy(c => c.TableName);
+        
+        foreach (var group in piiColumnsByTable)
         {
-            var excludedTables = _clrDependentTables.ToList();
-            _logger.LogInformation("Excluded {Count} PII columns from {TableCount} CLR-dependent tables: {Tables}", 
-                excludedCount, excludedTables.Count, string.Join(", ", excludedTables));
+            var tableName = group.Key;
+            var parts = tableName.Split('.');
+            var schemaName = parts.Length > 1 ? parts[0] : "dbo";
+            var tableNameOnly = parts.Length > 1 ? parts[1] : tableName;
+            
+            // Find the original table info
+            var originalTable = schema.Tables.FirstOrDefault(t => 
+                t.Schema.Equals(schemaName, StringComparison.OrdinalIgnoreCase) &&
+                t.TableName.Equals(tableNameOnly, StringComparison.OrdinalIgnoreCase));
+            
+            if (originalTable != null)
+            {
+                var tableWithPII = new TableWithPII
+                {
+                    TableName = tableNameOnly,
+                    Schema = schemaName,
+                    PIIColumns = group.ToList(),
+                    RowCount = originalTable.RowCount,
+                    Priority = DeterminePriority(originalTable, group.ToList()),
+                    PrimaryKeyColumns = originalTable.Columns
+                        .Where(c => c.IsPrimaryKey)
+                        .Select(c => c.ColumnName)
+                        .ToList()
+                };
+                
+                tablesWithPII.Add(tableWithPII);
+            }
         }
         
-        return filtered;
+        return new PIIAnalysisResult
+        {
+            DatabaseName = schema.DatabaseName,
+            TablesWithPII = tablesWithPII
+        };
+    }
+    
+    private int DeterminePriority(TableInfo table, List<PIIColumn> piiColumns)
+    {
+        // Determine priority based on table characteristics
+        var highPriorityPatterns = new[] { "person", "customer", "employee", "user", "contact" };
+        var tableName = table.TableName.ToLower();
+        
+        if (highPriorityPatterns.Any(pattern => tableName.Contains(pattern)))
+            return 1;
+        
+        if (piiColumns.Count >= 5)
+            return 1;
+        
+        if (piiColumns.Count >= 3)
+            return 3;
+        
+        return 5;
     }
 }

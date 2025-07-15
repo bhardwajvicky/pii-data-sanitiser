@@ -101,6 +101,10 @@ DataObfuscation.exe configs/production-config.json
 - **`RouteCode`**: Route identifiers (R001, SYD-MEL-001)
 - **`DepotLocation`**: Australian commercial addresses
 
+### Date & Time
+- **`Date`**: General date fields (anniversaries, hire dates, expiry dates)
+- **`DateOfBirth`**: Date of birth for individuals aged 18-80
+
 ## ⚙️ Configuration Examples
 
 ### Production Environment

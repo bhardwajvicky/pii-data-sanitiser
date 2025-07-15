@@ -6,9 +6,8 @@ using AutoMappingGenerator.Models;
 
 namespace AutoMappingGenerator.Services;
 
-public interface IClaudeApiService
+public interface IClaudeApiService : ILLMService
 {
-    Task<List<PIIColumn>> AnalyzeSchemaPIIAsync(DatabaseSchema schema);
     Task<List<PIIDataTypeRecommendation>> AnalyzeSampleDataAsync(string tableName, string columnName, List<object?> sampleData);
 }
 
@@ -19,14 +18,20 @@ public class ClaudeApiService : IClaudeApiService
     private readonly string _apiKey;
     private const string CLAUDE_API_URL = "https://api.anthropic.com/v1/messages";
 
+    public string ProviderName => "Claude";
+    public bool IsConfigured => !string.IsNullOrEmpty(_apiKey);
+
     public ClaudeApiService(HttpClient httpClient, ILogger<ClaudeApiService> logger, string apiKey)
     {
         _httpClient = httpClient;
         _logger = logger;
         _apiKey = apiKey;
         
-        _httpClient.DefaultRequestHeaders.Add("x-api-key", _apiKey);
-        _httpClient.DefaultRequestHeaders.Add("anthropic-version", "2023-06-01");
+        if (!string.IsNullOrEmpty(_apiKey))
+        {
+            _httpClient.DefaultRequestHeaders.Add("x-api-key", _apiKey);
+            _httpClient.DefaultRequestHeaders.Add("anthropic-version", "2023-06-01");
+        }
     }
 
     public async Task<List<PIIColumn>> AnalyzeSchemaPIIAsync(DatabaseSchema schema)
@@ -42,6 +47,7 @@ public class ClaudeApiService : IClaudeApiService
         _logger.LogInformation("Claude API identified {Count} potential PII columns", piiColumns.Count);
         return piiColumns;
     }
+    
 
     public async Task<List<PIIDataTypeRecommendation>> AnalyzeSampleDataAsync(string tableName, string columnName, List<object?> sampleData)
     {
@@ -107,11 +113,13 @@ public class ClaudeApiService : IClaudeApiService
             $"- {SupportedDataTypes.VINNumber}: Vehicle identification numbers",
             $"- {SupportedDataTypes.VehicleMakeModel}: Vehicle make and model",
             $"- {SupportedDataTypes.GPSCoordinate}: GPS coordinates, location data",
-            $"- {SupportedDataTypes.RouteCode}: Route identifiers"
+            $"- {SupportedDataTypes.RouteCode}: Route identifiers",
+            $"- {SupportedDataTypes.Date}: Personal dates ONLY (anniversary, hire date, termination date)",
+            $"- {SupportedDataTypes.DateOfBirth}: Date of birth, birthdate ONLY"
         };
 
         return "You are an expert data privacy consultant analyzing a database schema to identify columns that likely contain Personally Identifiable Information (PII).\n\n" +
-               "Please analyze the following database schema and identify columns that likely contain PII data:\n\n" +
+               "Please analyze the following database schema to identify columns that likely contain PII:\n\n" +
                schemaDescription + "\n\n" +
                "For each column you identify as containing PII, classify it into one of these categories:\n" +
                string.Join("\n", dataTypeDescriptions) + "\n\n" +
@@ -127,13 +135,32 @@ public class ClaudeApiService : IClaudeApiService
                $"- Use {SupportedDataTypes.FirstName} ONLY for: FirstName, GivenName, FName\n" +
                $"- Use {SupportedDataTypes.LastName} ONLY for: LastName, Surname, FamilyName, LName\n" +
                $"- Use {SupportedDataTypes.FullName} for: Name, DisplayName, PersonName, CustomerName\n\n" +
+               "IMPORTANT DATE MAPPING GUIDELINES:\n" +
+               $"- Use {SupportedDataTypes.DateOfBirth} for: DOB, DateOfBirth, BirthDate, Birthday, Born\n" +
+               $"- Use {SupportedDataTypes.Date} ONLY for personal dates: Anniversary, HireDate, TerminationDate\n" +
+               "- NEVER use Date for: ModifiedDate, CreatedDate, OrderDate, ShipDate, DueDate, etc.\n\n" +
                "Please respond in JSON format with an array of objects containing:\n" +
                "- tableName: Full table name (schema.table)\n" +
                "- columnName: Column name\n" +
                "- piiType: One of the categories above (exact match required)\n" +
                "- confidence: Confidence level (0.0-1.0)\n" +
                "- reasoning: Brief explanation why this column contains PII\n\n" +
-               "Only include columns where confidence >= 0.7. Focus on actual PII data, not technical IDs or system fields.\n\n" +
+               "CRITICAL EXCLUSION RULES:\n" +
+               "- DO NOT identify as PII: Sales figures, amounts, quantities, metrics, statistics\n" +
+               "- DO NOT identify as PII: System dates like ModifiedDate, CreatedDate, UpdatedDate\n" +
+               "- DO NOT identify as PII: Business metrics like SalesLastYear, Revenue, Count\n" +
+               "- DO NOT identify as PII: IDs that are just numbers (PersonID, CustomerID)\n" +
+               "- DO NOT identify as PII: Status fields, flags, types, categories\n" +
+               "- DO NOT identify as PII: Technical fields like versions, checksums, hashes\n" +
+               "- DO NOT identify as PII: Columns ending with ID, YTD, LastYear, Count, Amount, Total\n" +
+               "- DO NOT identify as PII: Geographic regions/territories that aren't personal addresses\n\n" +
+               "IMPORTANT DATA TYPE VALIDATION:\n" +
+               "- Names (FirstName, LastName, FullName) MUST be text types (varchar, nvarchar, char)\n" +
+               "- Phone numbers MUST be text types, NOT numeric types\n" +
+               "- Credit card numbers MUST be text types (varchar), NOT int or bigint\n" +
+               "- Money, decimal, numeric, float types are NEVER names or PII\n" +
+               "- Int/bigint columns ending with 'ID' are foreign keys, NOT actual data\n\n" +
+               "Only include columns where confidence >= 0.7. Focus on actual PII data that identifies or contacts individuals.\n\n" +
                "Example response:\n" +
                "[\n" +
                "  {\n" +

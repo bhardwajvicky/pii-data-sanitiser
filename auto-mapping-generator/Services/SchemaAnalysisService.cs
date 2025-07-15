@@ -142,16 +142,34 @@ public class SchemaAnalysisService : ISchemaAnalysisService
     {
         const string sql = @"
             SELECT 
-                c.COLUMN_NAME,
-                c.DATA_TYPE,
-                c.CHARACTER_MAXIMUM_LENGTH,
-                CASE WHEN c.IS_NULLABLE = 'YES' THEN 1 ELSE 0 END AS IsNullable,
-                c.COLUMN_DEFAULT,
-                c.ORDINAL_POSITION
-            FROM INFORMATION_SCHEMA.COLUMNS c
-            WHERE c.TABLE_SCHEMA = @SchemaName 
-                AND c.TABLE_NAME = @TableName
-            ORDER BY c.ORDINAL_POSITION";
+                c.name AS ColumnName,
+                t.name AS DataType,
+                c.max_length,
+                c.is_nullable,
+                dc.definition AS DefaultValue,
+                c.column_id AS OrdinalPosition,
+                c.is_identity,
+                c.is_computed,
+                c.precision,
+                c.scale,
+                c.is_rowguidcol,
+                c.is_filestream,
+                c.is_sparse,
+                c.is_xml_document,
+                c.collation_name,
+                CASE 
+                    WHEN fk.parent_column_id IS NOT NULL THEN 1 
+                    ELSE 0 
+                END AS IsForeignKey
+            FROM sys.columns c
+            INNER JOIN sys.types t ON c.user_type_id = t.user_type_id
+            INNER JOIN sys.tables tb ON c.object_id = tb.object_id
+            INNER JOIN sys.schemas s ON tb.schema_id = s.schema_id
+            LEFT JOIN sys.default_constraints dc ON c.default_object_id = dc.object_id
+            LEFT JOIN sys.foreign_key_columns fk ON c.object_id = fk.parent_object_id AND c.column_id = fk.parent_column_id
+            WHERE s.name = @SchemaName 
+                AND tb.name = @TableName
+            ORDER BY c.column_id";
 
         var columns = new List<ColumnInfo>();
 
@@ -163,15 +181,39 @@ public class SchemaAnalysisService : ISchemaAnalysisService
 
         while (await reader.ReadAsync())
         {
-            columns.Add(new ColumnInfo
+            var column = new ColumnInfo
             {
                 ColumnName = reader.GetString(0),
                 SqlDataType = reader.GetString(1),
-                MaxLength = reader.IsDBNull(2) ? null : reader.GetInt32(2),
-                IsNullable = reader.GetInt32(3) == 1,
+                MaxLength = reader.GetInt16(2),
+                IsNullable = reader.GetBoolean(3),
                 DefaultValue = reader.IsDBNull(4) ? null : reader.GetString(4),
-                OrdinalPosition = reader.GetInt32(5)
-            });
+                OrdinalPosition = reader.GetInt32(5),
+                IsIdentity = reader.GetBoolean(6),
+                IsComputed = reader.GetBoolean(7),
+                NumericPrecision = reader.IsDBNull(8) ? null : reader.GetByte(8),
+                NumericScale = reader.IsDBNull(9) ? null : reader.GetByte(9),
+                IsRowGuid = reader.GetBoolean(10),
+                IsFileStream = reader.GetBoolean(11),
+                IsSparse = reader.GetBoolean(12),
+                IsXmlDocument = reader.GetBoolean(13),
+                Collation = reader.IsDBNull(14) ? null : reader.GetString(14),
+                IsForeignKey = reader.GetInt32(15) == 1
+            };
+
+            // Adjust max length for nvarchar/nchar types (stored as byte count in sys.columns)
+            if (column.SqlDataType.StartsWith("n") && column.MaxLength > 0)
+            {
+                column.MaxLength = column.MaxLength / 2;
+            }
+
+            // Handle max length for varchar(max), nvarchar(max), etc.
+            if (column.MaxLength == -1)
+            {
+                column.MaxLength = null; // Represents MAX
+            }
+
+            columns.Add(column);
         }
 
         return columns;

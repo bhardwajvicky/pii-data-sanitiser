@@ -36,12 +36,25 @@ This tool automates the discovery of PII columns in SQL Server databases and cre
 
 ## 🚀 Usage
 
-### Basic Usage
+### Two-Step Workflow
+
+The tool now supports a two-step workflow:
+
+1. **Schema Extraction** (requires database access):
 ```bash
-# Build and run
-cd auto-mapping-generator
-dotnet build
-dotnet run
+# Extract schema only - no LLM calls
+dotnet run -- -schema    # or just: dotnet run
+```
+
+2. **Mapping Generation** (no database needed):
+```bash
+# Generate PII mappings from saved schema - uses LLM
+dotnet run -- -mapping
+```
+
+### Help
+```bash
+dotnet run -- -help
 ```
 
 ### Configuration
