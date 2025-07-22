@@ -36,6 +36,13 @@
           "default": 15000,
           "description": "Number of rows per batch"
         },
+        "sqlBatchSize": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000,
+          "default": 100,
+          "description": "Number of rows per SQL batch update"
+        },
         "parallelThreads": {
           "type": "integer",
           "minimum": 1,

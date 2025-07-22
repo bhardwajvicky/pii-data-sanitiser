@@ -20,6 +20,11 @@ public interface IDataRepository
         string tableName, 
         List<Dictionary<string, object?>> batch, 
         List<string> primaryKeyColumns);
+    Task<UpdateBatchResult> UpdateBatchAsync(
+        string tableName, 
+        List<Dictionary<string, object?>> batch, 
+        List<string> primaryKeyColumns,
+        int sqlBatchSize);
     Task<bool> TableExistsAsync(string tableName);
     Task<List<string>> GetTableColumnsAsync(string tableName);
 }
@@ -114,10 +119,203 @@ public class SqlServerRepository : IDataRepository
         List<Dictionary<string, object?>> batch, 
         List<string> primaryKeyColumns)
     {
+        return await UpdateBatchAsync(tableName, batch, primaryKeyColumns, 100); // Default SQL batch size
+    }
+
+    public async Task<UpdateBatchResult> UpdateBatchAsync(
+        string tableName, 
+        List<Dictionary<string, object?>> batch, 
+        List<string> primaryKeyColumns,
+        int sqlBatchSize)
+    {
         var result = new UpdateBatchResult();
         if (!batch.Any())
             return result;
 
+        // Process the batch in smaller SQL batches for optimal performance
+        for (int i = 0; i < batch.Count; i += sqlBatchSize)
+        {
+            var sqlBatch = batch.Skip(i).Take(sqlBatchSize).ToList();
+            var batchResult = await UpdateSqlBatchAsync(tableName, sqlBatch, primaryKeyColumns);
+            
+            result.SuccessfulRows += batchResult.SuccessfulRows;
+            result.SkippedRows += batchResult.SkippedRows;
+            result.FailedRows.AddRange(batchResult.FailedRows);
+            
+            if (batchResult.HasCriticalError)
+            {
+                result.HasCriticalError = true;
+                result.CriticalErrorMessage = batchResult.CriticalErrorMessage;
+                break;
+            }
+        }
+
+        return result;
+    }
+
+    private async Task<UpdateBatchResult> UpdateSqlBatchAsync(
+        string tableName, 
+        List<Dictionary<string, object?>> batch, 
+        List<string> primaryKeyColumns)
+    {
+        var result = new UpdateBatchResult();
+        if (!batch.Any())
+            return result;
+
+        using var connection = new SqlConnection(_connectionString);
+        await connection.OpenAsync();
+        
+        using var transaction = connection.BeginTransaction();
+        
+        try
+        {
+            // Create a temporary table to hold the update data
+            var tempTableName = $"#TempUpdate_{Guid.NewGuid():N}";
+            var dataColumns = batch.First().Keys.Except(primaryKeyColumns).ToList();
+            
+            if (!dataColumns.Any())
+            {
+                result.SuccessfulRows = batch.Count;
+                return result;
+            }
+
+            // Create temporary table
+            await CreateTempTableAsync(connection, transaction, tempTableName, batch.First(), primaryKeyColumns, dataColumns);
+            
+            // Insert data into temporary table using bulk insert
+            await BulkInsertToTempTableAsync(connection, transaction, tempTableName, batch, primaryKeyColumns, dataColumns);
+            
+            // Perform bulk update using the temporary table
+            var updatedRows = await BulkUpdateFromTempTableAsync(connection, transaction, tableName, tempTableName, primaryKeyColumns, dataColumns);
+            
+            result.SuccessfulRows = updatedRows;
+            
+            // Handle cases where some rows weren't updated (might not exist)
+            var expectedRows = batch.Count;
+            if (updatedRows < expectedRows)
+            {
+                _logger.LogWarning("Expected to update {ExpectedRows} rows but only updated {UpdatedRows} in table {TableName}", 
+                    expectedRows, updatedRows, tableName);
+                result.SkippedRows = expectedRows - updatedRows;
+            }
+            
+            await transaction.CommitAsync();
+        }
+        catch (SqlException ex) when (ex.Number == 2601 || ex.Number == 2627) // Unique constraint violations
+        {
+            await transaction.RollbackAsync();
+            _logger.LogWarning("Unique constraint violation in batch update for table {TableName}, falling back to row-by-row: {ErrorMessage}", 
+                tableName, ex.Message);
+            
+            // Fall back to row-by-row for this batch to handle unique constraints
+            result = await UpdateBatchRowByRowAsync(tableName, batch, primaryKeyColumns);
+        }
+        catch (Exception ex)
+        {
+            await transaction.RollbackAsync();
+            result.HasCriticalError = true;
+            result.CriticalErrorMessage = ex.Message;
+            _logger.LogError(ex, "Critical error during batch update for table {TableName}", tableName);
+            throw;
+        }
+        
+        return result;
+    }
+
+    private async Task CreateTempTableAsync(
+        SqlConnection connection, 
+        SqlTransaction transaction, 
+        string tempTableName, 
+        Dictionary<string, object?> sampleRow,
+        List<string> primaryKeyColumns,
+        List<string> dataColumns)
+    {
+        var allColumns = primaryKeyColumns.Concat(dataColumns);
+        var columnDefinitions = allColumns.Select(col => 
+        {
+            var sampleValue = sampleRow[col];
+            var sqlType = GetSqlTypeString(sampleValue);
+            return $"[{col}] {sqlType}";
+        });
+
+        var createTableSql = $"CREATE TABLE {tempTableName} ({string.Join(", ", columnDefinitions)})";
+        
+        using var command = new SqlCommand(createTableSql, connection, transaction);
+        command.CommandTimeout = 600;
+        await command.ExecuteNonQueryAsync();
+    }
+
+    private async Task BulkInsertToTempTableAsync(
+        SqlConnection connection, 
+        SqlTransaction transaction, 
+        string tempTableName, 
+        List<Dictionary<string, object?>> batch,
+        List<string> primaryKeyColumns,
+        List<string> dataColumns)
+    {
+        var allColumns = primaryKeyColumns.Concat(dataColumns).ToList();
+        var parameterSets = new List<string>();
+        
+        using var command = new SqlCommand();
+        command.Connection = connection;
+        command.Transaction = transaction;
+        command.CommandTimeout = 600;
+
+        for (int i = 0; i < batch.Count; i++)
+        {
+            var row = batch[i];
+            var parameters = allColumns.Select(col => $"@{col}_{i}").ToList();
+            parameterSets.Add($"({string.Join(", ", parameters)})");
+            
+            foreach (var col in allColumns)
+            {
+                var parameter = command.Parameters.Add($"@{col}_{i}", GetSqlDbType(row[col]));
+                parameter.Value = ConvertValueForDatabase(row[col]);
+                
+                if (row[col] is string stringValue && parameter.SqlDbType == SqlDbType.NVarChar)
+                {
+                    parameter.Size = Math.Max(stringValue.Length, 1);
+                }
+            }
+        }
+
+        var insertSql = $"INSERT INTO {tempTableName} ([{string.Join("], [", allColumns)}]) VALUES {string.Join(", ", parameterSets)}";
+        command.CommandText = insertSql;
+        
+        await command.ExecuteNonQueryAsync();
+    }
+
+    private async Task<int> BulkUpdateFromTempTableAsync(
+        SqlConnection connection, 
+        SqlTransaction transaction, 
+        string tableName, 
+        string tempTableName,
+        List<string> primaryKeyColumns,
+        List<string> dataColumns)
+    {
+        var setClause = string.Join(", ", dataColumns.Select(col => $"t.[{col}] = temp.[{col}]"));
+        var joinClause = string.Join(" AND ", primaryKeyColumns.Select(pk => $"t.[{pk}] = temp.[{pk}]"));
+        
+        var updateSql = $@"
+            UPDATE t 
+            SET {setClause}
+            FROM {FormatTableName(tableName)} t
+            INNER JOIN {tempTableName} temp ON {joinClause}";
+        
+        using var command = new SqlCommand(updateSql, connection, transaction);
+        command.CommandTimeout = 600;
+        
+        var rowsAffected = await command.ExecuteNonQueryAsync();
+        return rowsAffected;
+    }
+
+    private async Task<UpdateBatchResult> UpdateBatchRowByRowAsync(
+        string tableName, 
+        List<Dictionary<string, object?>> batch, 
+        List<string> primaryKeyColumns)
+    {
+        var result = new UpdateBatchResult();
+        
         using var connection = new SqlConnection(_connectionString);
         await connection.OpenAsync();
         
@@ -295,6 +493,28 @@ public class SqlServerRepository : IDataRepository
         {
             string stringValue when string.IsNullOrEmpty(stringValue) => DBNull.Value,
             _ => value
+        };
+    }
+
+    private static string GetSqlTypeString(object? value)
+    {
+        return value switch
+        {
+            null => "NVARCHAR(MAX)",
+            string stringValue => $"NVARCHAR({Math.Max(stringValue.Length + 50, 100)})", // Add buffer for obfuscated values
+            int => "INT",
+            long => "BIGINT",
+            short => "SMALLINT",
+            byte => "TINYINT",
+            decimal => "DECIMAL(18,2)",
+            double => "FLOAT",
+            float => "REAL",
+            bool => "BIT",
+            DateTime => "DATETIME",
+            DateTimeOffset => "DATETIMEOFFSET",
+            Guid => "UNIQUEIDENTIFIER",
+            byte[] => "VARBINARY(MAX)",
+            _ => "NVARCHAR(MAX)"
         };
     }
 }

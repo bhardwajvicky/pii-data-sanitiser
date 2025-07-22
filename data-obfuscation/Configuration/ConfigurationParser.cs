@@ -127,6 +127,7 @@ public class ConfigurationParser : IConfigurationParser
                 ConnectionString = config.Global.ConnectionString,
                 GlobalSeed = config.Global.GlobalSeed,
                 BatchSize = config.Global.BatchSize,
+                SqlBatchSize = config.Global.SqlBatchSize,
                 ParallelThreads = config.Global.ParallelThreads,
                 MaxCacheSize = config.Global.MaxCacheSize,
                 DryRun = config.Global.DryRun,

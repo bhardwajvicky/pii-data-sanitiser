@@ -165,7 +165,8 @@ public class ObfuscationEngine : IObfuscationEngine
             var batchSize = tableConfig.CustomBatchSize ?? globalConfig.Global.BatchSize;
             var totalRows = await _dataRepository.GetRowCountAsync(tableConfig.TableName, tableConfig.Conditions?.WhereClause);
             
-            _logger.LogInformation("Table {TableName} has {TotalRows:N0} rows to process", tableConfig.TableName, totalRows);
+            _logger.LogInformation("Table {TableName} has {TotalRows:N0} rows to process with batch size {BatchSize} and SQL batch size {SqlBatchSize}", 
+                tableConfig.TableName, totalRows, batchSize, globalConfig.Global.SqlBatchSize);
 
             var enabledColumns = tableConfig.Columns.Where(c => c.Enabled).ToList();
             if (!enabledColumns.Any())
@@ -175,84 +176,66 @@ public class ObfuscationEngine : IObfuscationEngine
                 return result;
             }
 
-            var processedRows = 0;
-            var offset = 0;
-
-            while (offset < totalRows)
+            if (globalConfig.Global.DryRun)
             {
-                if (globalConfig.Global.DryRun)
-                {
-                    _logger.LogInformation("[DRY RUN] Would process batch {Offset}-{End} for table {TableName}", 
-                        offset, Math.Min(offset + batchSize, totalRows), tableConfig.TableName);
-                    
-                    processedRows += (int)Math.Min(batchSize, totalRows - offset);
-                    offset += batchSize;
-                    continue;
-                }
+                _logger.LogInformation("[DRY RUN] Would process {TotalRows:N0} rows for table {TableName}", totalRows, tableConfig.TableName);
+                result.RowsProcessed = (int)totalRows;
+                result.Success = true;
+                return result;
+            }
 
-                var batch = await _dataRepository.GetBatchAsync(
-                    tableConfig.TableName, 
-                    enabledColumns.Select(c => c.ColumnName).ToList(),
-                    tableConfig.PrimaryKey,
+            // Create batch ranges for parallel processing
+            var batchRanges = CreateBatchRanges(totalRows, batchSize);
+            _logger.LogInformation("Created {BatchCount} batches for parallel processing of table {TableName}", 
+                batchRanges.Count, tableConfig.TableName);
+
+            // Process batches in parallel with controlled concurrency
+            var semaphore = new SemaphoreSlim(globalConfig.Global.ParallelThreads, globalConfig.Global.ParallelThreads);
+            var batchTasks = new List<Task<BatchProcessingResult>>();
+
+            foreach (var (offset, size) in batchRanges)
+            {
+                var task = ProcessBatchAsync(
+                    tableConfig, 
+                    globalConfig, 
+                    enabledColumns, 
                     offset, 
-                    batchSize, 
-                    tableConfig.Conditions?.WhereClause);
+                    size, 
+                    semaphore);
+                batchTasks.Add(task);
+            }
 
-                if (!batch.Any())
+            // Wait for all batches to complete
+            var batchResults = await Task.WhenAll(batchTasks);
+
+            // Aggregate results
+            foreach (var batchResult in batchResults)
+            {
+                result.RowsProcessed += batchResult.RowsProcessed;
+                
+                if (!batchResult.Success)
                 {
-                    break;
+                    result.Success = false;
+                    _logger.LogError("Batch processing failed for table {TableName}: {ErrorMessage}", 
+                        tableConfig.TableName, batchResult.ErrorMessage);
                 }
 
-                var obfuscatedBatch = await ObfuscateBatchAsync(batch, enabledColumns, globalConfig);
-                
-                var updateResult = await _dataRepository.UpdateBatchAsync(tableConfig.TableName, obfuscatedBatch, tableConfig.PrimaryKey);
-
-                processedRows += updateResult.SuccessfulRows;
-                
-                // Log failed rows with details
-                if (updateResult.FailedRows.Any())
+                // Log failed rows from this batch
+                foreach (var failedRow in batchResult.FailedRows)
                 {
-                    foreach (var failedRow in updateResult.FailedRows)
-                    {
-                        // Add original values to the failed row for better logging
-                        var originalRow = batch.FirstOrDefault(b => 
-                            failedRow.PrimaryKeyValues.All(pk => b.ContainsKey(pk.Key) && b[pk.Key]?.ToString() == pk.Value?.ToString()));
-                        
-                        if (originalRow != null)
-                        {
-                            foreach (var col in enabledColumns)
-                            {
-                                if (originalRow.ContainsKey(col.ColumnName))
-                                {
-                                    failedRow.UpdatedValues[$"{col.ColumnName}_original"] = originalRow[col.ColumnName];
-                                }
-                            }
-                        }
-                        
-                        await _failureLogger.LogFailedRowAsync(failedRow);
-                        _logger.LogError("Failed to update row: {FailedRowDetails}", failedRow.GetLogMessage());
-                    }
-                    
-                    _logger.LogWarning("Batch completed with {SuccessfulRows} successful and {SkippedRows} skipped rows", 
-                        updateResult.SuccessfulRows, updateResult.SkippedRows);
-                }
-                offset += batchSize;
-
-                _progressTracker.UpdateProgress(tableConfig.TableName, processedRows, totalRows);
-
-                if (processedRows % (batchSize * 10) == 0)
-                {
-                    _logger.LogInformation("Processed {ProcessedRows:N0}/{TotalRows:N0} rows for table {TableName}", 
-                        processedRows, totalRows, tableConfig.TableName);
+                    await _failureLogger.LogFailedRowAsync(failedRow);
+                    _logger.LogError("Failed to update row: {FailedRowDetails}", failedRow.GetLogMessage());
                 }
             }
 
-            result.RowsProcessed = processedRows;
-            result.Success = true;
+            result.Success = result.Success && batchResults.All(br => br.Success);
+
+            // Update final progress
+            _progressTracker.UpdateProgress(tableConfig.TableName, result.RowsProcessed, totalRows);
 
             stopwatch.Stop();
-            _logger.LogInformation("Completed table {TableName}: {ProcessedRows:N0} rows in {Duration}", 
-                tableConfig.TableName, processedRows, stopwatch.Elapsed);
+            _logger.LogInformation("Completed table {TableName}: {ProcessedRows:N0} rows in {Duration} using parallel processing", 
+                tableConfig.TableName, result.RowsProcessed, stopwatch.Elapsed);
 
             _progressTracker.CompleteTable(tableConfig.TableName);
 
@@ -267,6 +250,108 @@ public class ObfuscationEngine : IObfuscationEngine
             _progressTracker.FailTable(tableConfig.TableName, ex.Message);
             
             return result;
+        }
+    }
+
+    private static List<(int Offset, int Size)> CreateBatchRanges(long totalRows, int batchSize)
+    {
+        var ranges = new List<(int Offset, int Size)>();
+        var offset = 0;
+        
+        while (offset < totalRows)
+        {
+            var size = (int)Math.Min(batchSize, totalRows - offset);
+            ranges.Add((offset, size));
+            offset += size;
+        }
+        
+        return ranges;
+    }
+
+    private async Task<BatchProcessingResult> ProcessBatchAsync(
+        TableConfiguration tableConfig,
+        ObfuscationConfiguration globalConfig,
+        List<ColumnConfiguration> enabledColumns,
+        int offset,
+        int batchSize,
+        SemaphoreSlim semaphore)
+    {
+        await semaphore.WaitAsync();
+        
+        try
+        {
+            var result = new BatchProcessingResult();
+            
+            _logger.LogDebug("Processing batch {Offset}-{End} for table {TableName}", 
+                offset, offset + batchSize, tableConfig.TableName);
+
+            var batch = await _dataRepository.GetBatchAsync(
+                tableConfig.TableName, 
+                enabledColumns.Select(c => c.ColumnName).ToList(),
+                tableConfig.PrimaryKey,
+                offset, 
+                batchSize, 
+                tableConfig.Conditions?.WhereClause);
+
+            if (!batch.Any())
+            {
+                result.Success = true;
+                return result;
+            }
+
+            var obfuscatedBatch = await ObfuscateBatchAsync(batch, enabledColumns, globalConfig);
+            
+            var updateResult = await _dataRepository.UpdateBatchAsync(
+                tableConfig.TableName, 
+                obfuscatedBatch, 
+                tableConfig.PrimaryKey, 
+                globalConfig.Global.SqlBatchSize);
+
+            result.RowsProcessed = updateResult.SuccessfulRows;
+            result.Success = !updateResult.HasCriticalError;
+            result.FailedRows = updateResult.FailedRows;
+            
+            if (updateResult.FailedRows.Any())
+            {
+                // Add original values to failed rows for better logging
+                foreach (var failedRow in updateResult.FailedRows)
+                {
+                    var originalRow = batch.FirstOrDefault(b => 
+                        failedRow.PrimaryKeyValues.All(pk => b.ContainsKey(pk.Key) && b[pk.Key]?.ToString() == pk.Value?.ToString()));
+                    
+                    if (originalRow != null)
+                    {
+                        foreach (var col in enabledColumns)
+                        {
+                            if (originalRow.ContainsKey(col.ColumnName))
+                            {
+                                failedRow.UpdatedValues[$"{col.ColumnName}_original"] = originalRow[col.ColumnName];
+                            }
+                        }
+                    }
+                }
+                
+                _logger.LogWarning("Batch {Offset}-{End} completed with {SuccessfulRows} successful and {SkippedRows} skipped rows", 
+                    offset, offset + batchSize, updateResult.SuccessfulRows, updateResult.SkippedRows);
+            }
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error processing batch {Offset}-{End} for table {TableName}", 
+                offset, offset + batchSize, tableConfig.TableName);
+            
+            return new BatchProcessingResult
+            {
+                Success = false,
+                ErrorMessage = ex.Message,
+                RowsProcessed = 0
+            };
+        }
+        finally
+        {
+            semaphore.Release();
         }
     }
 
@@ -519,4 +604,12 @@ public class TableProcessingResult
     public bool Success { get; set; } = true;
     public long RowsProcessed { get; set; }
     public string? ErrorMessage { get; set; }
+}
+
+public class BatchProcessingResult
+{
+    public bool Success { get; set; } = true;
+    public int RowsProcessed { get; set; }
+    public string ErrorMessage { get; set; } = string.Empty;
+    public List<FailedRow> FailedRows { get; set; } = new();
 }

@@ -54,6 +54,11 @@ public class ConfigurationValidator : IConfigurationValidator
             result.AddError("Global.BatchSize must be greater than 0");
         }
 
+        if (global.SqlBatchSize <= 0 || global.SqlBatchSize > 1000)
+        {
+            result.AddError("Global.SqlBatchSize must be between 1 and 1000");
+        }
+
         if (global.ParallelThreads <= 0)
         {
             result.AddError("Global.ParallelThreads must be greater than 0");

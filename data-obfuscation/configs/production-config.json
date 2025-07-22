@@ -10,6 +10,7 @@
     "connectionString": "Server=prod-fleet-db;Database=FleetManagementDB;Trusted_Connection=true;",
     "globalSeed": "FleetProdSeed2024_v3",
     "batchSize": 25000,
+    "sqlBatchSize": 100,
     "parallelThreads": 16,
     "maxCacheSize": 5000000,
     "dryRun": false,

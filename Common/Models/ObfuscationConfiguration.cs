@@ -31,6 +31,7 @@ public class GlobalConfiguration
     public string ConnectionString { get; set; } = string.Empty;
     public string GlobalSeed { get; set; } = string.Empty;
     public int BatchSize { get; set; } = 10000;
+    public int SqlBatchSize { get; set; } = 100;
     public int ParallelThreads { get; set; } = 4;
     public int MaxCacheSize { get; set; } = 100000;
     public bool DryRun { get; set; } = true;

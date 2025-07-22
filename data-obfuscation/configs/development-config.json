@@ -9,6 +9,7 @@
     "connectionString": "Server=localhost;Database=FleetDevDB;Trusted_Connection=true;",
     "globalSeed": "FleetDevSeed2024",
     "batchSize": 1000,
+    "sqlBatchSize": 100,
     "parallelThreads": 2,
     "maxCacheSize": 50000,
     "dryRun": true,
