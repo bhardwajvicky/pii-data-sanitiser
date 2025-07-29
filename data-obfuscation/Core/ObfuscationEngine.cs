@@ -386,7 +386,21 @@ public class ObfuscationEngine : IObfuscationEngine
                     try
                     {
                         var obfuscatedValue = GenerateObfuscatedValue(originalValue, columnConfig, globalConfig);
-                        obfuscatedRow[columnConfig.ColumnName] = obfuscatedValue;
+                        
+                        // CRITICAL: Ensure we never generate NULL for non-NULL source values
+                        if (obfuscatedValue == null || obfuscatedValue == DBNull.Value || 
+                            (obfuscatedValue is string strValue && string.IsNullOrEmpty(strValue)))
+                        {
+                            _logger.LogError("CRITICAL: Obfuscation generated NULL/empty value for non-NULL source. Column: {ColumnName}, OriginalValue: {OriginalValue}", 
+                                columnConfig.ColumnName, originalValue);
+                            
+                            // Use original value as fallback to prevent NULL insertion
+                            obfuscatedRow[columnConfig.ColumnName] = originalValue;
+                        }
+                        else
+                        {
+                            obfuscatedRow[columnConfig.ColumnName] = obfuscatedValue;
+                        }
                     }
                     catch (Exception ex)
                     {

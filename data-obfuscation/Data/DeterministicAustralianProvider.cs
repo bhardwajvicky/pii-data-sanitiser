@@ -70,7 +70,20 @@ public class DeterministicAustralianProvider : IDeterministicAustralianProvider
         return GetOrCreateMapping($"DriverName_{originalValue}", customSeed, () =>
         {
             var faker = CreateFaker(originalValue, customSeed);
-            return faker.Name.FullName();
+            var fullName = faker.Name.FullName();
+            
+            // Defensive check: Bogus should never return null, but let's be safe
+            if (string.IsNullOrEmpty(fullName))
+            {
+                _logger.LogError("Bogus returned null/empty FullName for original value: {OriginalValue}", originalValue);
+                // Generate a fallback full name based on the hash
+                var hash = Math.Abs(originalValue.GetHashCode());
+                var firstNames = new[] { "John", "Jane", "Michael", "Sarah", "David" };
+                var lastNames = new[] { "Smith", "Johnson", "Williams", "Brown", "Jones" };
+                fullName = $"{firstNames[hash % firstNames.Length]} {lastNames[(hash / firstNames.Length) % lastNames.Length]}";
+            }
+            
+            return fullName;
         }, shouldCache: true);
     }
 
@@ -80,7 +93,19 @@ public class DeterministicAustralianProvider : IDeterministicAustralianProvider
         return GetOrCreateMapping($"FirstName_{originalValue}", customSeed, () =>
         {
             var faker = CreateFaker(originalValue, customSeed);
-            return faker.Name.FirstName();
+            var firstName = faker.Name.FirstName();
+            
+            // Defensive check: Bogus should never return null, but let's be safe
+            if (string.IsNullOrEmpty(firstName))
+            {
+                _logger.LogError("Bogus returned null/empty FirstName for original value: {OriginalValue}", originalValue);
+                // Generate a fallback first name based on the hash
+                var hash = Math.Abs(originalValue.GetHashCode());
+                var fallbackNames = new[] { "John", "Jane", "Michael", "Sarah", "David", "Emma", "Robert", "Lisa", "James", "Mary" };
+                firstName = fallbackNames[hash % fallbackNames.Length];
+            }
+            
+            return firstName;
         }, shouldCache: true);
     }
 
@@ -90,7 +115,19 @@ public class DeterministicAustralianProvider : IDeterministicAustralianProvider
         return GetOrCreateMapping($"LastName_{originalValue}", customSeed, () =>
         {
             var faker = CreateFaker(originalValue, customSeed);
-            return faker.Name.LastName();
+            var lastName = faker.Name.LastName();
+            
+            // Defensive check: Bogus should never return null, but let's be safe
+            if (string.IsNullOrEmpty(lastName))
+            {
+                _logger.LogError("Bogus returned null/empty LastName for original value: {OriginalValue}", originalValue);
+                // Generate a fallback last name based on the hash
+                var hash = Math.Abs(originalValue.GetHashCode());
+                var fallbackNames = new[] { "Smith", "Johnson", "Williams", "Brown", "Jones", "Miller", "Davis", "Wilson", "Moore", "Taylor" };
+                lastName = fallbackNames[hash % fallbackNames.Length];
+            }
+            
+            return lastName;
         }, shouldCache: true);
     }
 

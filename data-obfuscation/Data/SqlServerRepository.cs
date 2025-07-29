@@ -491,7 +491,10 @@ public class SqlServerRepository : IDataRepository
         // Handle specific conversions
         return value switch
         {
-            string stringValue when string.IsNullOrEmpty(stringValue) => DBNull.Value,
+            // IMPORTANT: Do NOT convert empty strings to NULL
+            // Empty strings are valid values and should not be converted to NULL
+            // This was causing issues where obfuscated values that were empty strings
+            // were being inserted as NULL into the database
             _ => value
         };
     }
