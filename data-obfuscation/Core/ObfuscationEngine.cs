@@ -234,8 +234,9 @@ public class ObfuscationEngine : IObfuscationEngine
             _progressTracker.UpdateProgress(tableConfig.TableName, result.RowsProcessed, totalRows);
 
             stopwatch.Stop();
-            _logger.LogInformation("Completed table {TableName}: {ProcessedRows:N0} rows in {Duration} using parallel processing", 
-                tableConfig.TableName, result.RowsProcessed, stopwatch.Elapsed);
+            var rowsPerSecond = result.RowsProcessed / Math.Max(stopwatch.Elapsed.TotalSeconds, 1);
+            _logger.LogInformation("✓ Completed table {TableName}: {ProcessedRows:N0} rows in {Duration} ({RowsPerSecond:N0} rows/sec)", 
+                tableConfig.TableName, result.RowsProcessed, stopwatch.Elapsed, rowsPerSecond);
 
             _progressTracker.CompleteTable(tableConfig.TableName);
 
@@ -281,9 +282,16 @@ public class ObfuscationEngine : IObfuscationEngine
         try
         {
             var result = new BatchProcessingResult();
+            var batchStartTime = DateTime.UtcNow;
             
-            _logger.LogDebug("Processing batch {Offset}-{End} for table {TableName}", 
-                offset, offset + batchSize, tableConfig.TableName);
+            var totalRows = await _dataRepository.GetRowCountAsync(tableConfig.TableName, tableConfig.Conditions?.WhereClause);
+            var batchNumber = (offset / batchSize) + 1;
+            var totalBatches = (int)Math.Ceiling((double)totalRows / batchSize);
+            
+            var progressPercentage = (batchNumber * 100) / totalBatches;
+            var endRow = Math.Min(offset + batchSize, (int)totalRows);
+            _logger.LogInformation("[{ProgressPercentage}%] Processing batch {BatchNumber}/{TotalBatches} (rows {Offset}-{End}) for table {TableName}", 
+                progressPercentage, batchNumber, totalBatches, offset + 1, endRow, tableConfig.TableName);
 
             var batch = await _dataRepository.GetBatchAsync(
                 tableConfig.TableName, 
@@ -299,7 +307,12 @@ public class ObfuscationEngine : IObfuscationEngine
                 return result;
             }
 
+            _logger.LogInformation("Obfuscating {RowCount} rows in batch {BatchNumber}/{TotalBatches}...", 
+                batch.Count, batchNumber, totalBatches);
+            
             var obfuscatedBatch = await ObfuscateBatchAsync(batch, enabledColumns, globalConfig);
+            
+            _logger.LogInformation("Writing {RowCount} obfuscated rows to database...", obfuscatedBatch.Count);
             
             var updateResult = await _dataRepository.UpdateBatchAsync(
                 tableConfig.TableName, 
@@ -310,6 +323,11 @@ public class ObfuscationEngine : IObfuscationEngine
             result.RowsProcessed = updateResult.SuccessfulRows;
             result.Success = !updateResult.HasCriticalError;
             result.FailedRows = updateResult.FailedRows;
+            
+            // Log batch completion with timing
+            var elapsedMs = (int)(DateTime.UtcNow - batchStartTime).TotalMilliseconds;
+            _logger.LogInformation("Completed batch {BatchNumber}/{TotalBatches} for table {TableName}: {SuccessfulRows} rows written, {SkippedRows} skipped in {ElapsedMs}ms", 
+                batchNumber, totalBatches, tableConfig.TableName, updateResult.SuccessfulRows, updateResult.SkippedRows, elapsedMs);
             
             if (updateResult.FailedRows.Any())
             {
