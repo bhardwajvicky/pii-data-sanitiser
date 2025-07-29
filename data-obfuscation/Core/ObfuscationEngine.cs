@@ -377,8 +377,10 @@ public class ObfuscationEngine : IObfuscationEngine
                     
                     if (originalValue == null || originalValue == DBNull.Value)
                     {
-                        if (columnConfig.Conditions?.OnlyIfNotNull == true)
-                            continue;
+                        // If the value is NULL, preserve it as NULL regardless of configuration
+                        // This ensures nullable columns maintain their NULL values
+                        obfuscatedRow[columnConfig.ColumnName] = originalValue;
+                        continue;
                     }
 
                     try
@@ -408,8 +410,8 @@ public class ObfuscationEngine : IObfuscationEngine
 
     private object? GenerateObfuscatedValue(object? originalValue, ColumnConfiguration columnConfig, ObfuscationConfiguration globalConfig)
     {
-        if (originalValue == null || originalValue == DBNull.Value)
-            return originalValue;
+        // NULL values are now handled before this method is called
+        // This method should only be called with non-null values
 
         var customDataType = globalConfig.DataTypes.GetValueOrDefault(columnConfig.DataType);
         var customSeed = customDataType?.CustomSeed;
