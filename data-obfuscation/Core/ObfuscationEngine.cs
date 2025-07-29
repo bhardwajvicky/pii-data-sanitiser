@@ -11,6 +11,7 @@ namespace DataObfuscation.Core;
 public interface IObfuscationEngine
 {
     Task<ObfuscationResult> ExecuteAsync(ObfuscationConfiguration config);
+    Task<ObfuscationResult> ExecuteAsync(ObfuscationConfiguration config, string configPath, string mappingPath, bool resumeIfPossible = true);
 }
 
 public class ObfuscationEngine : IObfuscationEngine
@@ -21,6 +22,9 @@ public class ObfuscationEngine : IObfuscationEngine
     private readonly IDataRepository _dataRepository;
     private readonly IProgressTracker _progressTracker;
     private readonly IFailureLogger _failureLogger;
+    private readonly ICheckpointService _checkpointService;
+    private CheckpointState? _currentCheckpoint;
+    private readonly SemaphoreSlim _checkpointLock = new SemaphoreSlim(1, 1);
 
     public ObfuscationEngine(
         ILogger<ObfuscationEngine> logger,
@@ -28,7 +32,8 @@ public class ObfuscationEngine : IObfuscationEngine
         IReferentialIntegrityManager integrityManager,
         IDataRepository dataRepository,
         IProgressTracker progressTracker,
-        IFailureLogger failureLogger)
+        IFailureLogger failureLogger,
+        ICheckpointService checkpointService)
     {
         _logger = logger;
         _dataProvider = dataProvider;
@@ -36,9 +41,16 @@ public class ObfuscationEngine : IObfuscationEngine
         _dataRepository = dataRepository;
         _progressTracker = progressTracker;
         _failureLogger = failureLogger;
+        _checkpointService = checkpointService;
     }
 
     public async Task<ObfuscationResult> ExecuteAsync(ObfuscationConfiguration config)
+    {
+        // Call the overloaded method without checkpoint support
+        return await ExecuteAsync(config, string.Empty, string.Empty, false);
+    }
+
+    public async Task<ObfuscationResult> ExecuteAsync(ObfuscationConfiguration config, string configPath, string mappingPath, bool resumeIfPossible = true)
     {
         var stopwatch = Stopwatch.StartNew();
         var result = new ObfuscationResult();
@@ -50,6 +62,58 @@ public class ObfuscationEngine : IObfuscationEngine
             // Initialize failure logger
             var databaseName = ExtractDatabaseName(config.Global.ConnectionString);
             await _failureLogger.InitializeAsync(databaseName);
+            
+            // Handle checkpoint/resume logic
+            string configHash = string.Empty;
+            if (resumeIfPossible && !string.IsNullOrEmpty(configPath) && !string.IsNullOrEmpty(mappingPath))
+            {
+                configHash = _checkpointService.ComputeConfigHash(configPath, mappingPath);
+                _currentCheckpoint = await _checkpointService.LoadCheckpointAsync(configHash);
+                
+                if (_currentCheckpoint != null && _currentCheckpoint.Status == "InProgress")
+                {
+                    _logger.LogInformation("Found incomplete run started at {StartedAt:yyyy-MM-dd HH:mm:ss}, last updated at {LastUpdatedAt:yyyy-MM-dd HH:mm:ss}", 
+                        _currentCheckpoint.StartedAt, _currentCheckpoint.LastUpdatedAt);
+                    _logger.LogInformation("Processed {ProcessedRows:N0} rows across {ProcessedTables} tables", 
+                        _currentCheckpoint.TotalRowsProcessed, 
+                        _currentCheckpoint.Tables.Count(t => t.Status == "Completed"));
+                    
+                    // Ask user if they want to resume
+                    Console.WriteLine("\nAn incomplete obfuscation run was detected:");
+                    Console.WriteLine($"  Started: {_currentCheckpoint.StartedAt:yyyy-MM-dd HH:mm:ss}");
+                    Console.WriteLine($"  Last Update: {_currentCheckpoint.LastUpdatedAt:yyyy-MM-dd HH:mm:ss}");
+                    Console.WriteLine($"  Progress: {_currentCheckpoint.TotalRowsProcessed:N0} rows processed");
+                    Console.WriteLine("\nDo you want to resume from where it stopped? (Y/N): ");
+                    
+                    var response = Console.ReadLine()?.Trim().ToUpperInvariant();
+                    if (response != "Y")
+                    {
+                        _logger.LogInformation("User chose to start fresh. Clearing checkpoint.");
+                        await _checkpointService.ClearCheckpointAsync(configHash);
+                        _currentCheckpoint = null;
+                    }
+                    else
+                    {
+                        _logger.LogInformation("Resuming from checkpoint");
+                    }
+                }
+            }
+            
+            // Initialize new checkpoint if not resuming
+            if (_currentCheckpoint == null && !string.IsNullOrEmpty(configHash))
+            {
+                _currentCheckpoint = new CheckpointState
+                {
+                    ConfigHash = configHash,
+                    DatabaseName = databaseName,
+                    StartedAt = DateTime.UtcNow,
+                    LastUpdatedAt = DateTime.UtcNow,
+                    Status = "InProgress",
+                    ConfigPath = configPath,
+                    MappingPath = mappingPath
+                };
+                await _checkpointService.SaveCheckpointAsync(_currentCheckpoint);
+            }
             
             await InitializeAsync(config);
             
@@ -93,10 +157,26 @@ public class ObfuscationEngine : IObfuscationEngine
                 _logger.LogInformation("Data obfuscation completed successfully in {Duration}", result.Duration);
                 _logger.LogInformation("Tables processed: {TablesProcessed}, Rows processed: {RowsProcessed:N0}", 
                     result.TablesProcessed, result.RowsProcessed);
+                
+                // Mark checkpoint as completed
+                if (_currentCheckpoint != null)
+                {
+                    _currentCheckpoint.Status = "Completed";
+                    _currentCheckpoint.LastUpdatedAt = DateTime.UtcNow;
+                    await _checkpointService.SaveCheckpointAsync(_currentCheckpoint);
+                }
             }
             else
             {
                 _logger.LogError("Data obfuscation completed with errors: {ErrorMessage}", result.ErrorMessage);
+                
+                // Mark checkpoint as failed
+                if (_currentCheckpoint != null)
+                {
+                    _currentCheckpoint.Status = "Failed";
+                    _currentCheckpoint.LastUpdatedAt = DateTime.UtcNow;
+                    await _checkpointService.SaveCheckpointAsync(_currentCheckpoint);
+                }
             }
 
             return result;
@@ -159,6 +239,20 @@ public class ObfuscationEngine : IObfuscationEngine
 
         try
         {
+            // Check if table was already processed in checkpoint
+            CheckpointTableProgress? tableProgress = null;
+            if (_currentCheckpoint != null)
+            {
+                tableProgress = _currentCheckpoint.Tables.FirstOrDefault(t => t.TableName == tableConfig.TableName);
+                if (tableProgress?.Status == "Completed")
+                {
+                    _logger.LogInformation("Table {TableName} already processed in previous run. Skipping.", tableConfig.TableName);
+                    result.Success = true;
+                    result.RowsProcessed = tableProgress.ProcessedRows;
+                    return result;
+                }
+            }
+            
             _logger.LogInformation("Processing table: {TableName}", tableConfig.TableName);
             _progressTracker.StartTable(tableConfig.TableName);
 
@@ -184,6 +278,26 @@ public class ObfuscationEngine : IObfuscationEngine
                 return result;
             }
 
+            // Initialize or update table progress in checkpoint
+            if (_currentCheckpoint != null)
+            {
+                if (tableProgress == null)
+                {
+                    tableProgress = new CheckpointTableProgress
+                    {
+                        TableName = tableConfig.TableName,
+                        Status = "InProgress",
+                        TotalRows = totalRows,
+                        StartedAt = DateTime.UtcNow
+                    };
+                    _currentCheckpoint.Tables.Add(tableProgress);
+                }
+                else
+                {
+                    tableProgress.Status = "InProgress";
+                }
+            }
+            
             // Create batch ranges for parallel processing
             var batchRanges = CreateBatchRanges(totalRows, batchSize);
             _logger.LogInformation("Created {BatchCount} batches for parallel processing of table {TableName}", 
@@ -195,13 +309,21 @@ public class ObfuscationEngine : IObfuscationEngine
 
             foreach (var (offset, size) in batchRanges)
             {
+                // Check if batch was already processed
+                if (tableProgress != null && tableProgress.Batches.Any(b => b.Offset == offset && b.IsProcessed))
+                {
+                    _logger.LogInformation("Batch at offset {Offset} already processed. Skipping.", offset);
+                    continue;
+                }
+                
                 var task = ProcessBatchAsync(
                     tableConfig, 
                     globalConfig, 
                     enabledColumns, 
                     offset, 
                     size, 
-                    semaphore);
+                    semaphore,
+                    tableProgress);
                 batchTasks.Add(task);
             }
 
@@ -237,6 +359,15 @@ public class ObfuscationEngine : IObfuscationEngine
             var rowsPerSecond = result.RowsProcessed / Math.Max(stopwatch.Elapsed.TotalSeconds, 1);
             _logger.LogInformation("✓ Completed table {TableName}: {ProcessedRows:N0} rows in {Duration} ({RowsPerSecond:N0} rows/sec)", 
                 tableConfig.TableName, result.RowsProcessed, stopwatch.Elapsed, rowsPerSecond);
+
+            // Mark table as completed in checkpoint
+            if (_currentCheckpoint != null && tableProgress != null)
+            {
+                tableProgress.Status = "Completed";
+                tableProgress.CompletedAt = DateTime.UtcNow;
+                _currentCheckpoint.LastUpdatedAt = DateTime.UtcNow;
+                await _checkpointService.SaveCheckpointAsync(_currentCheckpoint);
+            }
 
             _progressTracker.CompleteTable(tableConfig.TableName);
 
@@ -275,7 +406,8 @@ public class ObfuscationEngine : IObfuscationEngine
         List<ColumnConfiguration> enabledColumns,
         int offset,
         int batchSize,
-        SemaphoreSlim semaphore)
+        SemaphoreSlim semaphore,
+        CheckpointTableProgress? tableProgress)
     {
         await semaphore.WaitAsync();
         
@@ -328,6 +460,37 @@ public class ObfuscationEngine : IObfuscationEngine
             var elapsedMs = (int)(DateTime.UtcNow - batchStartTime).TotalMilliseconds;
             _logger.LogInformation("Completed batch {BatchNumber}/{TotalBatches} for table {TableName}: {SuccessfulRows} rows written, {SkippedRows} skipped in {ElapsedMs}ms", 
                 batchNumber, totalBatches, tableConfig.TableName, updateResult.SuccessfulRows, updateResult.SkippedRows, elapsedMs);
+            
+            // Update checkpoint for this batch
+            if (_currentCheckpoint != null && tableProgress != null)
+            {
+                await _checkpointLock.WaitAsync();
+                try
+                {
+                    var batchProgress = new CheckpointBatchProgress
+                    {
+                        BatchNumber = batchNumber,
+                        Offset = offset,
+                        Size = batchSize,
+                        IsProcessed = true,
+                        ProcessedAt = DateTime.UtcNow,
+                        RowsProcessed = updateResult.SuccessfulRows
+                    };
+                    
+                    tableProgress.Batches.Add(batchProgress);
+                    tableProgress.ProcessedRows += updateResult.SuccessfulRows;
+                    
+                    _currentCheckpoint.TotalRowsProcessed += updateResult.SuccessfulRows;
+                    _currentCheckpoint.LastUpdatedAt = DateTime.UtcNow;
+                    
+                    // Save checkpoint after each batch
+                    await _checkpointService.SaveCheckpointAsync(_currentCheckpoint);
+                }
+                finally
+                {
+                    _checkpointLock.Release();
+                }
+            }
             
             if (updateResult.FailedRows.Any())
             {

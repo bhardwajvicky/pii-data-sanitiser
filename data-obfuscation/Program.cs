@@ -49,21 +49,23 @@ class Program
             logger.LogInformation("Starting Data Obfuscation Tool");
             
             ObfuscationConfiguration config;
+            string mappingPath = string.Empty;
+            string configPath = string.Empty;
             
             if (nonFlagArgs.Length == 1)
             {
                 // Single file mode (legacy)
-                var configFile = nonFlagArgs[0];
-                logger.LogInformation("Configuration file: {ConfigFile}", configFile);
-                config = await configParser.LoadConfigurationAsync(configFile);
+                configPath = nonFlagArgs[0];
+                logger.LogInformation("Configuration file: {ConfigFile}", configPath);
+                config = await configParser.LoadConfigurationAsync(configPath);
             }
             else if (nonFlagArgs.Length == 2)
             {
                 // Two file mode (mapping + config)
-                var mappingFile = nonFlagArgs[0];
-                var configFile = nonFlagArgs[1];
-                logger.LogInformation("Mapping file: {MappingFile}, Configuration file: {ConfigFile}", mappingFile, configFile);
-                config = await configParser.LoadConfigurationAsync(mappingFile, configFile);
+                mappingPath = nonFlagArgs[0];
+                configPath = nonFlagArgs[1];
+                logger.LogInformation("Mapping file: {MappingFile}, Configuration file: {ConfigFile}", mappingPath, configPath);
+                config = await configParser.LoadConfigurationAsync(mappingPath, configPath);
             }
             else
             {
@@ -113,7 +115,7 @@ class Program
                 return 0;
             }
 
-            var result = await obfuscationEngine.ExecuteAsync(config);
+            var result = await obfuscationEngine.ExecuteAsync(config, configPath, mappingPath, resumeIfPossible: true);
             
             if (result.Success)
             {
@@ -153,5 +155,6 @@ class Program
                 services.AddScoped<IDataRepository, SqlServerRepository>();
                 services.AddScoped<IProgressTracker, ProgressTracker>();
                 services.AddScoped<IFailureLogger, FailureLogger>();
+                services.AddScoped<ICheckpointService, CheckpointService>();
             });
 }
