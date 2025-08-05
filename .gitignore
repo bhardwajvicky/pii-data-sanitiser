@@ -85,6 +85,9 @@ data-obfuscation/reports/
 *.mappings
 mappings/
 
+# Checkpoint files
+checkpoints/
+
 # Configuration files with sensitive data
 **/appsettings.json
 **/appsettings.*.json

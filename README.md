@@ -18,7 +18,7 @@ dotnet run "Server=localhost;Database=YourDB;Integrated Security=true;"
 
 # 4. Obfuscate the data
 cd ../data-obfuscation
-dotnet run ../JSON/YourDB-mapping.json ../JSON/YourDB-config.json
+dotnet run ../JSON/YourDB-mapping.json
 ```
 
 ## 📋 Table of Contents
@@ -50,8 +50,19 @@ The PII Data Sanitizer provides a complete solution for:
 - Pattern-based PII detection with confidence scoring
 - Automatic detection of 20+ data types (names, addresses, licenses, etc.)
 - Referential integrity detection
-- Configuration file generation
+- **Unified configuration generation** - Single file containing all settings
 - Comprehensive analysis reports
+
+### 🔐 Data Obfuscation Engine
+- **Deterministic Processing**: Same input → same output across all databases
+- **Australian Data Generation**: Realistic fleet industry data
+- **Smart Caching**: Selective caching for optimal performance
+- **Parallel Processing**: Up to 32 concurrent threads
+- **Progress Tracking**: Real-time status updates
+- **Dry Run Mode**: Test configurations without modifying data
+- **Failure Recovery**: Detailed failure logs and skip capabilities
+- **NULL Value Handling**: Respects database constraints for nullable/non-nullable columns
+- **Performance Optimized**: Uses SqlBulkCopy and MERGE statements for large datasets
 
 ### 🔐 Data Obfuscation Engine
 - **Deterministic Processing**: Same input → same output across all databases
@@ -115,9 +126,7 @@ dotnet run "Server=localhost;Database=AdventureWorks;Integrated Security=true;"
 ```
 
 This generates:
-- `JSON/{database}-mapping.json` - Column mapping definitions
-- `JSON/{database}-config.json` - Obfuscation configuration
-- `JSON/{database}_analysis_summary.json` - Analysis report
+- `JSON/{database}-mapping.json` - Unified configuration file containing all settings and mappings
 
 ### Step 2: Review & Customize Configuration
 
@@ -133,13 +142,65 @@ Edit the generated config files to:
 cd data-obfuscation
 
 # Dry run (no changes)
-dotnet run ../JSON/config.json --dry-run
+dotnet run ../JSON/YourDB-mapping.json --dry-run
 
 # Full obfuscation
-dotnet run ../JSON/mapping.json ../JSON/config.json
+dotnet run ../JSON/YourDB-mapping.json
 ```
 
 ## Configuration
+
+### Unified File Approach
+
+The system now uses a single unified configuration file that contains all settings and mappings. This simplifies deployment and reduces the number of files to manage.
+
+#### File Structure
+```json
+{
+  "Global": {
+    "ConnectionString": "Server=...;Database=...;",
+    "GlobalSeed": "YourSecretSeed2024",
+    "BatchSize": 2000,
+    "SqlBatchSize": 500,
+    "ParallelThreads": 8,
+    "MaxCacheSize": 500000,
+    "DryRun": false,
+    "EnableValueCaching": true
+  },
+  "DataTypes": {
+    "customDataType": {
+      "BaseType": "Email",
+      "CustomSeed": "CustomSeed2024",
+      "PreserveLength": false
+    }
+  },
+  "ReferentialIntegrity": {
+    "Enabled": false,
+    "Relationships": []
+  },
+  "PostProcessing": {
+    "GenerateReport": true,
+    "ReportPath": "reports/{database}-obfuscation-{timestamp}.json"
+  },
+  "Tables": [
+    {
+      "TableName": "Person.Person",
+      "Schema": "Person",
+      "FullTableName": "Person.Person",
+      "PrimaryKey": ["BusinessEntityID"],
+      "Columns": [
+        {
+          "ColumnName": "FirstName",
+          "DataType": "FirstName",
+          "Enabled": true,
+          "IsNullable": false,
+          "PreserveLength": false
+        }
+      ]
+    }
+  ]
+}
+```
 
 ### Basic Configuration Structure
 
@@ -258,7 +319,7 @@ dotnet run ../JSON/mapping.json ../JSON/config.json
 ```
 
 #### Schema Analysis Reports
-- **Location**: `JSON/{database}_analysis_summary.json`
+- **Location**: `JSON/{database}-mapping.json` (embedded in unified file)
 - **Content**: PII detection results and statistics
 
 ### 💾 Mapping Files
@@ -306,6 +367,26 @@ Cache statistics - Total entries: 3,568
 - **Memory Savings**: 95%+ reduction in cache size
 - **Speed**: Maintains high performance for common values
 
+## Recent Improvements
+
+### 🚀 Performance Enhancements
+- **SqlBulkCopy Integration**: Replaced parameterized INSERT with bulk operations for 3-5x performance improvement
+- **MERGE Statements**: Optimized UPDATE operations using SQL Server MERGE for better performance
+- **Conservative Batch Sizes**: Default batch sizes optimized to avoid SQL Server parameter limits (2100 max)
+- **Enhanced Parallel Processing**: Increased default parallel threads to 8 for better CPU utilization
+
+### 🔒 NULL Value Handling
+- **Constraint Respect**: Automatically preserves NULL values for non-nullable columns
+- **Database Schema Compliance**: Uses `IsNullable` information from database schema
+- **Safe Processing**: Prevents constraint violations during obfuscation
+- **Debug Logging**: Detailed logging for NULL handling (debug level only)
+
+### 📁 Unified Configuration
+- **Single File Approach**: All settings and mappings in one JSON file
+- **Simplified Deployment**: Reduced from 3 files to 1 file
+- **Auto-Generation**: Auto-mapping-generator creates unified files automatically
+- **Template Updates**: Template files updated with new format and placeholder credentials
+
 ## Performance
 
 ### Benchmarks
@@ -339,10 +420,10 @@ dotnet run config.json
 dotnet run config.json --dry-run
 ```
 
-### Example 3: Two-File Configuration
+### Example 3: Unified Configuration
 ```bash
-# Separate mapping and config files
-dotnet run mapping.json config.json
+# Single unified configuration file
+dotnet run YourDB-mapping.json
 ```
 
 ### Example 4: Parallel Processing
@@ -366,7 +447,11 @@ dotnet run mapping.json config.json
 rm -rf mappings/{environment}/*.json
 ```
 
-#### 2. Memory Issues
+#### 2. NULL Value Issues
+**Problem**: NULL values being replaced with obfuscated data
+**Solution**: The system now automatically preserves NULL values for non-nullable columns. Check that `IsNullable` is correctly set in your mapping file.
+
+#### 3. Memory Issues
 **Problem**: OutOfMemoryException
 **Solution**: Reduce cache size or disable caching for large fields:
 ```json
@@ -374,14 +459,14 @@ rm -rf mappings/{environment}/*.json
 "EnableValueCaching": false
 ```
 
-#### 3. Slow Performance
+#### 4. Slow Performance
 **Problem**: Processing < 1000 rows/sec
 **Solution**: 
 - Increase batch size and threads
 - Check network latency
 - Verify indexes exist
 
-#### 4. Connection Timeouts
+#### 5. Connection Timeouts
 **Problem**: "Timeout expired"
 **Solution**: Increase timeout:
 ```json

@@ -216,14 +216,8 @@ public class SqlServerRepository : IDataRepository
                 return result;
             }
 
-            // Create temporary table
-            await CreateTempTableAsync(connection, transaction, tempTableName, batch.First(), primaryKeyColumns, dataColumns);
-            
-            // Insert data into temporary table using bulk insert
-            await BulkInsertToTempTableAsync(connection, transaction, tempTableName, batch, primaryKeyColumns, dataColumns);
-            
-            // Perform bulk update using the temporary table
-            var updatedRows = await BulkUpdateFromTempTableAsync(connection, transaction, tableName, tempTableName, primaryKeyColumns, dataColumns);
+            // Perform bulk update using the optimized approach (handles temp table creation and data loading)
+            var updatedRows = await BulkUpdateWithMergeAsync(connection, transaction, tableName, batch, primaryKeyColumns, dataColumns);
             
             result.SuccessfulRows = updatedRows;
             
@@ -300,68 +294,97 @@ public class SqlServerRepository : IDataRepository
         await command.ExecuteNonQueryAsync();
     }
 
-    private async Task BulkInsertToTempTableAsync(
+
+
+    private async Task<int> BulkUpdateWithMergeAsync(
         SqlConnection connection, 
         SqlTransaction transaction, 
-        string tempTableName, 
+        string tableName, 
         List<Dictionary<string, object?>> batch,
         List<string> primaryKeyColumns,
         List<string> dataColumns)
     {
+        // Create a DataTable for bulk copy
+        var dataTable = new DataTable();
         var allColumns = primaryKeyColumns.Concat(dataColumns).ToList();
-        var parameterSets = new List<string>();
         
-        using var command = new SqlCommand();
-        command.Connection = connection;
-        command.Transaction = transaction;
-        command.CommandTimeout = 600;
-
-        for (int i = 0; i < batch.Count; i++)
+        // Add columns to DataTable
+        foreach (var column in allColumns)
         {
-            var row = batch[i];
-            var parameters = allColumns.Select(col => $"@{col}_{i}").ToList();
-            parameterSets.Add($"({string.Join(", ", parameters)})");
-            
-            foreach (var col in allColumns)
-            {
-                var parameter = command.Parameters.Add($"@{col}_{i}", GetSqlDbType(row[col]));
-                parameter.Value = ConvertValueForDatabase(row[col]);
-                
-                if (row[col] is string stringValue && parameter.SqlDbType == SqlDbType.NVarChar)
-                {
-                    parameter.Size = Math.Max(stringValue.Length, 1);
-                }
-            }
+            var sampleValue = batch.First()[column];
+            var dataType = GetClrType(sampleValue);
+            dataTable.Columns.Add(column, dataType);
         }
-
-        var insertSql = $"INSERT INTO {tempTableName} ([{string.Join("], [", allColumns)}]) VALUES {string.Join(", ", parameterSets)}";
-        command.CommandText = insertSql;
         
-        await command.ExecuteNonQueryAsync();
-    }
-
-    private async Task<int> BulkUpdateFromTempTableAsync(
-        SqlConnection connection, 
-        SqlTransaction transaction, 
-        string tableName, 
-        string tempTableName,
-        List<string> primaryKeyColumns,
-        List<string> dataColumns)
-    {
-        var setClause = string.Join(", ", dataColumns.Select(col => $"t.[{col}] = temp.[{col}]"));
-        var joinClause = string.Join(" AND ", primaryKeyColumns.Select(pk => $"t.[{pk}] = temp.[{pk}]"));
+        // Add rows to DataTable
+        foreach (var row in batch)
+        {
+            var dataRow = dataTable.NewRow();
+            foreach (var column in allColumns)
+            {
+                dataRow[column] = ConvertValueForDatabase(row[column]) ?? DBNull.Value;
+            }
+            dataTable.Rows.Add(dataRow);
+        }
         
-        var updateSql = $@"
-            UPDATE t 
-            SET {setClause}
-            FROM {FormatTableName(tableName)} t
-            INNER JOIN {tempTableName} temp ON {joinClause}";
+        // Create temp table name
+        var tempTableName = $"#TempUpdate_{Guid.NewGuid():N}";
         
-        using var command = new SqlCommand(updateSql, connection, transaction);
+        // Create temp table with same structure as target
+        await CreateTempTableAsync(connection, transaction, tempTableName, batch.First(), primaryKeyColumns, dataColumns);
+        
+        // Use SqlBulkCopy to load data into temp table (much faster than parameterized INSERT)
+        using var bulkCopy = new SqlBulkCopy(connection, SqlBulkCopyOptions.Default, transaction);
+        bulkCopy.DestinationTableName = tempTableName;
+        bulkCopy.BatchSize = 1000; // Optimize for large datasets
+        bulkCopy.NotifyAfter = 1000;
+        
+        // Map columns
+        foreach (var column in allColumns)
+        {
+            bulkCopy.ColumnMappings.Add(column, column);
+        }
+        
+        await bulkCopy.WriteToServerAsync(dataTable);
+        
+        // Use MERGE statement for better performance than JOIN UPDATE
+        var setClause = string.Join(", ", dataColumns.Select(col => $"t.[{col}] = s.[{col}]"));
+        var matchClause = string.Join(" AND ", primaryKeyColumns.Select(pk => $"t.[{pk}] = s.[{pk}]"));
+        
+        var mergeSql = $@"
+            MERGE {FormatTableName(tableName)} AS t
+            USING {tempTableName} AS s
+            ON {matchClause}
+            WHEN MATCHED THEN
+                UPDATE SET {setClause};";
+        
+        using var command = new SqlCommand(mergeSql, connection, transaction);
         command.CommandTimeout = 600;
         
         var rowsAffected = await command.ExecuteNonQueryAsync();
         return rowsAffected;
+    }
+    
+    private static Type GetClrType(object? value)
+    {
+        if (value == null) return typeof(string);
+        
+        return value switch
+        {
+            int => typeof(int),
+            long => typeof(long),
+            short => typeof(short),
+            byte => typeof(byte),
+            decimal => typeof(decimal),
+            double => typeof(double),
+            float => typeof(float),
+            DateTime => typeof(DateTime),
+            DateTimeOffset => typeof(DateTimeOffset),
+            bool => typeof(bool),
+            Guid => typeof(Guid),
+            byte[] => typeof(byte[]),
+            _ => typeof(string)
+        };
     }
 
     private async Task<UpdateBatchResult> UpdateBatchRowByRowAsync(

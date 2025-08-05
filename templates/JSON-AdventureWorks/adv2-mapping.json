@@ -1,14 +1,48 @@
 {
-  "Metadata": {
-    "ConfigVersion": "2.1",
-    "Description": "Table and column mappings for adv2 database",
-    "CreatedBy": "AutoMappingGenerator",
-    "CreatedDate": "2025-07-15T12:39:47.353786Z",
-    "LastModified": "2025-07-15T12:39:47.353805Z",
-    "DatabaseName": "adv2",
-    "TotalTables": 6,
-    "TotalColumns": 10,
-    "TotalPiiColumns": 10
+  "Global": {
+    "ConnectionString": "Server=your-server.database.windows.net;Database=your-database;User Id=your-username;Password=your-password;Encrypt=true;",
+    "GlobalSeed": "PII-Sanitizer-2024-CrossDB-Deterministic-AU-v3.7.2",
+    "BatchSize": 2000,
+    "SqlBatchSize": 500,
+    "ParallelThreads": 8,
+    "MaxCacheSize": 500000,
+    "DryRun": false,
+    "PersistMappings": true,
+    "EnableValueCaching": true,
+    "CommandTimeoutSeconds": 600,
+    "MappingCacheDirectory": "mappings/adv2"
+  },
+  "DataTypes": {
+    "adv2AddressLine1": {
+      "BaseType": "AddressLine1",
+      "CustomSeed": "PII-Sanitizer-2024-CrossDB-Deterministic-AU-v3.7.2",
+      "PreserveLength": false,
+      "Validation": null,
+      "Formatting": null,
+      "Transformation": null,
+      "Description": "AddressLine1 with adv2-specific seeding"
+    },
+    "adv2CreditCard": {
+      "BaseType": "CreditCard",
+      "CustomSeed": "PII-Sanitizer-2024-CrossDB-Deterministic-AU-v3.7.2",
+      "PreserveLength": true,
+      "Validation": null,
+      "Formatting": null,
+      "Transformation": null,
+      "Description": "CreditCard with adv2-specific seeding"
+    }
+  },
+  "ReferentialIntegrity": {
+    "Enabled": false,
+    "Relationships": [],
+    "StrictMode": false,
+    "OnViolation": "warn"
+  },
+  "PostProcessing": {
+    "GenerateReport": true,
+    "ReportPath": "reports/adv2-obfuscation-{timestamp}.json",
+    "ValidateResults": true,
+    "BackupMappings": true
   },
   "Tables": [
     {
@@ -33,9 +67,7 @@
           "IsNullable": false,
           "PreserveLength": false
         }
-      ],
-      "TotalRows": 290,
-      "Enabled": true
+      ]
     },
     {
       "TableName": "PersonPhone",
@@ -54,9 +86,7 @@
           "IsNullable": false,
           "PreserveLength": true
         }
-      ],
-      "TotalRows": 19972,
-      "Enabled": true
+      ]
     },
     {
       "TableName": "Address",
@@ -94,9 +124,7 @@
           "IsNullable": false,
           "PreserveLength": false
         }
-      ],
-      "TotalRows": 19614,
-      "Enabled": true
+      ]
     },
     {
       "TableName": "EmailAddress",
@@ -109,14 +137,12 @@
       "Columns": [
         {
           "ColumnName": "EmailAddress",
-          "DataType": "AddressLine1",
+          "DataType": "Email",
           "Enabled": true,
           "IsNullable": true,
           "PreserveLength": false
         }
-      ],
-      "TotalRows": 19972,
-      "Enabled": true
+      ]
     },
     {
       "TableName": "CreditCard",
@@ -133,9 +159,7 @@
           "IsNullable": false,
           "PreserveLength": true
         }
-      ],
-      "TotalRows": 19118,
-      "Enabled": true
+      ]
     },
     {
       "TableName": "ProductReview",
@@ -147,14 +171,12 @@
       "Columns": [
         {
           "ColumnName": "EmailAddress",
-          "DataType": "AddressLine1",
+          "DataType": "Email",
           "Enabled": true,
           "IsNullable": false,
           "PreserveLength": false
         }
-      ],
-      "TotalRows": 4,
-      "Enabled": true
+      ]
     }
   ]
 }

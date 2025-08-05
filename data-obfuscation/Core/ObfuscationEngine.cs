@@ -596,9 +596,21 @@ public class ObfuscationEngine : IObfuscationEngine
                     
                     if (originalValue == null || originalValue == DBNull.Value)
                     {
-                        // If the value is NULL, preserve it as NULL regardless of configuration
-                        // This ensures nullable columns maintain their NULL values
-                        obfuscatedRow[columnConfig.ColumnName] = originalValue;
+                        // Check if this column has OnlyIfNotNull condition (meaning it's NOT nullable)
+                        if (columnConfig.Conditions?.OnlyIfNotNull == true)
+                        {
+                            // For non-nullable columns, preserve NULL values as NULL
+                            // This prevents trying to obfuscate NULL values for columns that shouldn't accept NULL
+                            obfuscatedRow[columnConfig.ColumnName] = originalValue;
+                            _logger.LogDebug("Preserving NULL value for non-nullable column: {ColumnName}", columnConfig.ColumnName);
+                        }
+                        else
+                        {
+                            // For nullable columns, we can try to obfuscate NULL values
+                            // But for now, we'll preserve them to be safe
+                            obfuscatedRow[columnConfig.ColumnName] = originalValue;
+                            _logger.LogDebug("Preserving NULL value for nullable column: {ColumnName}", columnConfig.ColumnName);
+                        }
                         continue;
                     }
 

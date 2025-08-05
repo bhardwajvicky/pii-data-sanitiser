@@ -31,7 +31,7 @@ public class ObfuscationConfigGenerator : IObfuscationConfigGenerator
                 ConnectionString = connectionString,
                 GlobalSeed = "PII-Sanitizer-2024-CrossDB-Deterministic-AU-v3.7.2",
                 BatchSize = DetermineBatchSize(piiAnalysis),
-                SqlBatchSize = 100,
+                SqlBatchSize = 500,
                 ParallelThreads = 8,
                 MaxCacheSize = DetermineCacheSize(piiAnalysis),
                 DryRun = false,
@@ -157,8 +157,8 @@ public class ObfuscationConfigGenerator : IObfuscationConfigGenerator
 
     private int DetermineBatchSize(PIIAnalysisResult piiAnalysis)
     {
-        // Fixed batch size of 1000 for all tables
-        return 1000;
+        // Conservative batch size of 2000 to avoid SQL parameter limits while maintaining performance
+        return 2000;
     }
 
     private int DetermineCacheSize(PIIAnalysisResult piiAnalysis)
