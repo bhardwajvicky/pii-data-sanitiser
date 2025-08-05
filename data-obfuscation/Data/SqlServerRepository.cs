@@ -54,13 +54,32 @@ public class SqlServerRepository : IDataRepository
             sql += $" WHERE {whereClause}";
         }
 
-        using var connection = new SqlConnection(_connectionString);
-        await connection.OpenAsync();
-        
-        using var command = new SqlCommand(sql, connection);
-        var result = await command.ExecuteScalarAsync();
-        
-        return Convert.ToInt64(result);
+        try
+        {
+            using var connection = new SqlConnection(_connectionString);
+            await connection.OpenAsync();
+            
+            using var command = new SqlCommand(sql, connection);
+            command.CommandTimeout = 600; // 10 minutes
+            var result = await command.ExecuteScalarAsync();
+            
+            return Convert.ToInt64(result);
+        }
+        catch (SqlException ex) when (ex.Number == -2 || ex.Number == 53 || ex.Number == 10060 || ex.Number == 10061)
+        {
+            _logger.LogError(ex, "Database connection error getting row count for table {TableName}. Error Number: {ErrorNumber}", tableName, ex.Number);
+            throw;
+        }
+        catch (SqlException ex) when (ex.Number == 208)
+        {
+            _logger.LogError(ex, "Table '{TableName}' does not exist or is not accessible", tableName);
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error getting row count for table {TableName}", tableName);
+            throw;
+        }
     }
 
     public async Task<List<Dictionary<string, object?>>> GetBatchAsync(
@@ -87,31 +106,49 @@ public class SqlServerRepository : IDataRepository
         sql.AppendLine($"OFFSET {offset} ROWS");
         sql.AppendLine($"FETCH NEXT {batchSize} ROWS ONLY");
 
-        using var connection = new SqlConnection(_connectionString);
-        await connection.OpenAsync();
-        
-        using var command = new SqlCommand(sql.ToString(), connection);
-        command.CommandTimeout = 600; // 10 minutes
-        
-        using var reader = await command.ExecuteReaderAsync();
-        
-        var results = new List<Dictionary<string, object?>>();
-        
-        while (await reader.ReadAsync())
+        try
         {
-            var row = new Dictionary<string, object?>();
+            using var connection = new SqlConnection(_connectionString);
+            await connection.OpenAsync();
             
-            for (int i = 0; i < reader.FieldCount; i++)
+            using var command = new SqlCommand(sql.ToString(), connection);
+            command.CommandTimeout = 600; // 10 minutes
+            
+            using var reader = await command.ExecuteReaderAsync();
+            
+            var results = new List<Dictionary<string, object?>>();
+            
+            while (await reader.ReadAsync())
             {
-                var columnName = reader.GetName(i);
-                var value = reader.IsDBNull(i) ? null : reader.GetValue(i);
-                row[columnName] = value;
+                var row = new Dictionary<string, object?>();
+                
+                for (int i = 0; i < reader.FieldCount; i++)
+                {
+                    var columnName = reader.GetName(i);
+                    var value = reader.IsDBNull(i) ? null : reader.GetValue(i);
+                    row[columnName] = value;
+                }
+                
+                results.Add(row);
             }
             
-            results.Add(row);
+            return results;
         }
-        
-        return results;
+        catch (SqlException ex) when (ex.Number == -2 || ex.Number == 53 || ex.Number == 10060 || ex.Number == 10061)
+        {
+            _logger.LogError(ex, "Database connection error getting batch for table {TableName}. Error Number: {ErrorNumber}", tableName, ex.Number);
+            throw;
+        }
+        catch (SqlException ex) when (ex.Number == 208)
+        {
+            _logger.LogError(ex, "Table '{TableName}' does not exist or is not accessible", tableName);
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error getting batch for table {TableName}", tableName);
+            throw;
+        }
     }
 
     public async Task<UpdateBatchResult> UpdateBatchAsync(
@@ -209,6 +246,24 @@ public class SqlServerRepository : IDataRepository
             
             // Fall back to row-by-row for this batch to handle unique constraints
             result = await UpdateBatchRowByRowAsync(tableName, batch, primaryKeyColumns);
+        }
+        catch (SqlException ex) when (ex.Number == -2 || ex.Number == 53 || ex.Number == 10060 || ex.Number == 10061)
+        {
+            // Network-related errors (timeout, connection refused, etc.)
+            await transaction.RollbackAsync();
+            result.HasCriticalError = true;
+            result.CriticalErrorMessage = $"Database connection error: {ex.Message}";
+            _logger.LogError(ex, "Database connection error during batch update for table {TableName}. Error Number: {ErrorNumber}", tableName, ex.Number);
+            throw;
+        }
+        catch (SqlException ex) when (ex.Number == 1205)
+        {
+            // Deadlock
+            await transaction.RollbackAsync();
+            result.HasCriticalError = true;
+            result.CriticalErrorMessage = $"Deadlock detected: {ex.Message}";
+            _logger.LogError(ex, "Deadlock detected during batch update for table {TableName}", tableName);
+            throw;
         }
         catch (Exception ex)
         {

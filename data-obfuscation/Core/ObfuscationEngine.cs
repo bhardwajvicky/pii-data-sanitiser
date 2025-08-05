@@ -65,9 +65,14 @@ public class ObfuscationEngine : IObfuscationEngine
             
             // Handle checkpoint/resume logic
             string configHash = string.Empty;
-            if (resumeIfPossible && !string.IsNullOrEmpty(configPath) && !string.IsNullOrEmpty(mappingPath))
+            
+            if (resumeIfPossible && (!string.IsNullOrEmpty(configPath) || !string.IsNullOrEmpty(mappingPath)))
             {
-                configHash = _checkpointService.ComputeConfigHash(configPath, mappingPath);
+                // For unified mapping file, use the mapping path as both config and mapping
+                var effectiveConfigPath = !string.IsNullOrEmpty(configPath) ? configPath : mappingPath;
+                var effectiveMappingPath = !string.IsNullOrEmpty(mappingPath) ? mappingPath : configPath;
+                
+                configHash = _checkpointService.ComputeConfigHash(effectiveConfigPath, effectiveMappingPath);
                 _currentCheckpoint = await _checkpointService.LoadCheckpointAsync(configHash);
                 
                 if (_currentCheckpoint != null && _currentCheckpoint.Status == "InProgress")
@@ -102,6 +107,10 @@ public class ObfuscationEngine : IObfuscationEngine
             // Initialize new checkpoint if not resuming
             if (_currentCheckpoint == null && !string.IsNullOrEmpty(configHash))
             {
+                // For unified mapping file, use the mapping path as both config and mapping
+                var effectiveConfigPath = !string.IsNullOrEmpty(configPath) ? configPath : mappingPath;
+                var effectiveMappingPath = !string.IsNullOrEmpty(mappingPath) ? mappingPath : configPath;
+                
                 _currentCheckpoint = new CheckpointState
                 {
                     ConfigHash = configHash,
@@ -109,8 +118,8 @@ public class ObfuscationEngine : IObfuscationEngine
                     StartedAt = DateTime.UtcNow,
                     LastUpdatedAt = DateTime.UtcNow,
                     Status = "InProgress",
-                    ConfigPath = configPath,
-                    MappingPath = mappingPath
+                    ConfigPath = effectiveConfigPath,
+                    MappingPath = effectiveMappingPath
                 };
                 await _checkpointService.SaveCheckpointAsync(_currentCheckpoint);
             }
@@ -132,7 +141,22 @@ public class ObfuscationEngine : IObfuscationEngine
                 tasks.Add(ProcessTableAsync(tableConfig, config, semaphore));
             }
 
-            var tableResults = await Task.WhenAll(tasks);
+            // Wait for all table processing tasks to complete with proper exception handling
+            TableProcessingResult[] tableResults;
+            try
+            {
+                tableResults = await Task.WhenAll(tasks);
+            }
+            catch (AggregateException ae)
+            {
+                _logger.LogError(ae, "One or more table processing tasks failed with exceptions");
+                // Extract individual exceptions and log them
+                foreach (var innerException in ae.InnerExceptions)
+                {
+                    _logger.LogError(innerException, "Table processing task exception");
+                }
+                throw; // Re-throw to be caught by the outer try-catch
+            }
 
             foreach (var tableResult in tableResults)
             {
@@ -327,8 +351,22 @@ public class ObfuscationEngine : IObfuscationEngine
                 batchTasks.Add(task);
             }
 
-            // Wait for all batches to complete
-            var batchResults = await Task.WhenAll(batchTasks);
+            // Wait for all batches to complete with proper exception handling
+            BatchProcessingResult[] batchResults;
+            try
+            {
+                batchResults = await Task.WhenAll(batchTasks);
+            }
+            catch (AggregateException ae)
+            {
+                _logger.LogError(ae, "One or more batch processing tasks failed for table {TableName}", tableConfig.TableName);
+                // Extract individual exceptions and log them
+                foreach (var innerException in ae.InnerExceptions)
+                {
+                    _logger.LogError(innerException, "Batch processing task exception for table {TableName}", tableConfig.TableName);
+                }
+                throw; // Re-throw to be caught by the outer try-catch
+            }
 
             // Aggregate results
             foreach (var batchResult in batchResults)

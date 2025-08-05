@@ -59,77 +59,22 @@ class Program
             logger.LogInformation("Identified {PIITableCount} tables with PII data containing {PIIColumnCount} PII columns",
                 piiAnalysis.TablesWithPII.Count, piiAnalysis.TablesWithPII.Sum(t => t.PIIColumns.Count));
 
-            // Step 3: Generate obfuscation configuration files
-            var (mapping, config) = configGenerator.GenerateObfuscationFiles(piiAnalysis, connectionString);
+            // Step 3: Generate unified obfuscation mapping file
+            var unifiedMapping = configGenerator.GenerateUnifiedObfuscationFile(piiAnalysis, connectionString);
 
-            // Step 4: Save output files
+            // Step 4: Save output file
             var outputDirectory = configuration["OutputOptions:OutputDirectory"] ?? "../JSON";
             Directory.CreateDirectory(outputDirectory);
             
-            // Save mapping file
+            // Save unified mapping file
             var mappingPath = Path.Combine(outputDirectory, $"{databaseName}-mapping.json");
             await File.WriteAllTextAsync(mappingPath, 
-                System.Text.Json.JsonSerializer.Serialize(mapping, new System.Text.Json.JsonSerializerOptions
+                System.Text.Json.JsonSerializer.Serialize(unifiedMapping, new System.Text.Json.JsonSerializerOptions
                 {
                     WriteIndented = true
                 }));
 
-            // Save configuration file
-            var configPath = Path.Combine(outputDirectory, $"{databaseName}-config.json");
-            await File.WriteAllTextAsync(configPath, 
-                System.Text.Json.JsonSerializer.Serialize(config, new System.Text.Json.JsonSerializerOptions
-                {
-                    WriteIndented = true
-                }));
-
-            logger.LogInformation("Table/column mapping saved to: {MappingPath}", mappingPath);
-            logger.LogInformation("Obfuscation configuration saved to: {ConfigPath}", configPath);
-
-            // Generate enhanced summary report
-            var summaryPath = Path.Combine(outputDirectory, $"{databaseName}_analysis_summary.json");
-            var summary = new
-            {
-                DatabaseName = databaseName,
-                AnalysisTimestamp = DateTime.UtcNow,
-                TotalTables = schemaInfo.Tables.Count,
-                TotalColumns = schemaInfo.Tables.Sum(t => t.Columns.Count),
-                TablesWithPII = piiAnalysis.TablesWithPII.Count,
-                PIIColumns = piiAnalysis.TablesWithPII.Sum(t => t.PIIColumns.Count),
-                PIIColumnsByType = piiAnalysis.TablesWithPII
-                    .SelectMany(t => t.PIIColumns)
-                    .GroupBy(c => c.DataType)
-                    .OrderByDescending(g => g.Count())
-                    .ToDictionary(g => g.Key, g => g.Count()),
-                TablesAnalyzed = piiAnalysis.TablesWithPII
-                    .OrderBy(t => t.Priority)
-                    .ThenBy(t => t.FullName)
-                    .Select(t => new
-                    {
-                        TableName = t.TableName,
-                        Schema = t.Schema,
-                        Priority = t.Priority,
-                        RowCount = t.RowCount,
-                        PIIColumnCount = t.PIIColumns.Count,
-                        PIIColumns = t.PIIColumns.Select(c => new
-                        {
-                            c.ColumnName,
-                            c.DataType,
-                            c.SqlDataType,
-                            c.MaxLength,
-                            c.IsNullable,
-                            c.ConfidenceScore,
-                            c.DetectionReasons
-                        })
-                    })
-            };
-
-            await File.WriteAllTextAsync(summaryPath,
-                System.Text.Json.JsonSerializer.Serialize(summary, new System.Text.Json.JsonSerializerOptions
-                {
-                    WriteIndented = true
-                }));
-
-            logger.LogInformation("Analysis summary saved to: {SummaryPath}", summaryPath);
+            logger.LogInformation("Unified obfuscation mapping saved to: {MappingPath}", mappingPath);
             logger.LogInformation("Analysis completed successfully");
             
             return 0;

@@ -8,7 +8,7 @@ namespace AutoMappingGenerator.Core;
 
 public interface IObfuscationConfigGenerator
 {
-    (TableColumnMapping mapping, ObfuscationConfiguration config) GenerateObfuscationFiles(PIIAnalysisResult piiAnalysis, string connectionString);
+    UnifiedObfuscationMapping GenerateUnifiedObfuscationFile(PIIAnalysisResult piiAnalysis, string connectionString);
 }
 
 public class ObfuscationConfigGenerator : IObfuscationConfigGenerator
@@ -20,115 +20,48 @@ public class ObfuscationConfigGenerator : IObfuscationConfigGenerator
         _logger = logger;
     }
 
-    public (TableColumnMapping mapping, ObfuscationConfiguration config) GenerateObfuscationFiles(PIIAnalysisResult piiAnalysis, string connectionString)
+    public UnifiedObfuscationMapping GenerateUnifiedObfuscationFile(PIIAnalysisResult piiAnalysis, string connectionString)
     {
-        _logger.LogInformation("Generating obfuscation configuration files for {DatabaseName}", piiAnalysis.DatabaseName);
+        _logger.LogInformation("Generating unified obfuscation mapping file for {DatabaseName}", piiAnalysis.DatabaseName);
 
-        // Generate table/column mapping file
-        var mapping = GenerateTableColumnMapping(piiAnalysis);
-        
-        // Generate configuration file
-        var config = GenerateObfuscationConfiguration(piiAnalysis, connectionString);
-
-        _logger.LogInformation("Generated mapping with {TableCount} tables and configuration with {DataTypeCount} custom data types",
-            mapping.Tables.Count, config.DataTypes.Count);
-
-        return (mapping, config);
-    }
-
-    private TableColumnMapping GenerateTableColumnMapping(PIIAnalysisResult piiAnalysis)
-    {
-        var totalPiiColumns = piiAnalysis.TablesWithPII.Sum(t => t.PIIColumns.Count);
-        var totalColumns = piiAnalysis.TablesWithPII.Sum(t => t.PIIColumns.Count); // Only PII columns in this mapping
-        
-        var mapping = new TableColumnMapping
+        var unifiedMapping = new UnifiedObfuscationMapping
         {
-            Metadata = new MappingMetadata
-            {
-                ConfigVersion = "2.1",
-                Description = $"Table and column mappings for {piiAnalysis.DatabaseName} database",
-                CreatedBy = "AutoMappingGenerator",
-                CreatedDate = DateTime.UtcNow,
-                LastModified = DateTime.UtcNow,
-                DatabaseName = piiAnalysis.DatabaseName,
-                TotalTables = piiAnalysis.TablesWithPII.Count,
-                TotalColumns = (int)totalColumns,
-                TotalPiiColumns = totalPiiColumns
-            },
-            Tables = GenerateTableMappings(piiAnalysis)
-        };
-
-        return mapping;
-    }
-
-    private ObfuscationConfiguration GenerateObfuscationConfiguration(PIIAnalysisResult piiAnalysis, string connectionString)
-    {
-        var config = new ObfuscationConfiguration
-        {
-            Metadata = new ConfigurationMetadata
-            {
-                ConfigVersion = "2.1",
-                Description = $"Obfuscation configuration for {piiAnalysis.DatabaseName} database",
-                CreatedBy = "AutoMappingGenerator",
-                CreatedDate = DateTime.UtcNow,
-                LastModified = DateTime.UtcNow,
-                MappingFileVersion = "2.1",
-                DatabaseName = piiAnalysis.DatabaseName
-            },
-            Global = new Common.Models.GlobalConfiguration
+            Global = new GlobalConfiguration
             {
                 ConnectionString = connectionString,
                 GlobalSeed = "PII-Sanitizer-2024-CrossDB-Deterministic-AU-v3.7.2",
                 BatchSize = DetermineBatchSize(piiAnalysis),
+                SqlBatchSize = 100,
                 ParallelThreads = 8,
                 MaxCacheSize = DetermineCacheSize(piiAnalysis),
                 DryRun = false,
                 PersistMappings = true,
                 EnableValueCaching = true,
                 CommandTimeoutSeconds = 600,
-                MappingCacheDirectory = $"mappings/{piiAnalysis.DatabaseName.ToLower()}",
-                LogLevel = "Information",
-                EnableProgressTracking = true
+                MappingCacheDirectory = $"mappings/{piiAnalysis.DatabaseName.ToLower()}"
             },
             DataTypes = GenerateCustomDataTypes(piiAnalysis),
-            ReferentialIntegrity = new Common.Models.ReferentialIntegrityConfiguration
+            ReferentialIntegrity = new ReferentialIntegrityConfiguration
             {
                 Enabled = false,
-                Relationships = new List<Common.Models.RelationshipConfiguration>(),
+                Relationships = new List<RelationshipConfiguration>(),
                 StrictMode = false,
                 OnViolation = "warn"
             },
-            PostProcessing = new Common.Models.PostProcessingConfiguration
+            PostProcessing = new PostProcessingConfiguration
             {
                 GenerateReport = true,
                 ReportPath = $"reports/{piiAnalysis.DatabaseName.ToLower()}-obfuscation-{{timestamp}}.json",
                 ValidateResults = true,
-                BackupMappings = true,
-                CompressMappings = false,
-                GenerateSummary = true,
-                NotificationEndpoints = new List<string>()
+                BackupMappings = true
             },
-            Performance = new Common.Models.PerformanceConfiguration
-            {
-                MaxMemoryUsageMB = 4096,
-                BufferSize = 8192,
-                EnableParallelProcessing = true,
-                MaxDegreeOfParallelism = 4,
-                OptimizeForThroughput = true,
-                ConnectionPoolSize = 20
-            },
-            Security = new Common.Models.SecurityConfiguration
-            {
-                EncryptMappings = false,
-                EncryptionKey = null,
-                HashSensitiveData = false,
-                AuditEnabled = true,
-                AuditLogPath = $"audit/{piiAnalysis.DatabaseName.ToLower()}-audit-{{timestamp}}.log",
-                SensitiveConfigKeys = new List<string> { "ConnectionString", "EncryptionKey" }
-            }
+            Tables = GenerateTableMappings(piiAnalysis)
         };
 
-        return config;
+        _logger.LogInformation("Generated unified mapping with {TableCount} tables and {DataTypeCount} custom data types",
+            unifiedMapping.Tables.Count, unifiedMapping.DataTypes.Count);
+
+        return unifiedMapping;
     }
 
     private List<TableMapping> GenerateTableMappings(PIIAnalysisResult piiAnalysis)
@@ -143,8 +76,6 @@ public class ObfuscationConfigGenerator : IObfuscationConfigGenerator
                 Schema = tableWithPII.Schema,
                 FullTableName = tableWithPII.FullName,
                 PrimaryKey = tableWithPII.PrimaryKeyColumns,
-                TotalRows = (int)tableWithPII.RowCount,
-                Enabled = true,
                 Columns = GenerateColumnMappings(tableWithPII)
             };
 
@@ -193,10 +124,9 @@ public class ObfuscationConfigGenerator : IObfuscationConfigGenerator
         };
     }
 
-
-    private Dictionary<string, Common.Models.CustomDataType> GenerateCustomDataTypes(PIIAnalysisResult piiAnalysis)
+    private Dictionary<string, CustomDataType> GenerateCustomDataTypes(PIIAnalysisResult piiAnalysis)
     {
-        var dataTypes = new Dictionary<string, Common.Models.CustomDataType>();
+        var dataTypes = new Dictionary<string, CustomDataType>();
         var dataTypeUsage = new Dictionary<string, int>();
 
         // Count usage of each data type
@@ -212,7 +142,7 @@ public class ObfuscationConfigGenerator : IObfuscationConfigGenerator
         foreach (var usage in dataTypeUsage.Where(u => u.Value >= 2))
         {
             var customTypeName = $"{piiAnalysis.DatabaseName}{MapToStandardDataType(usage.Key)}";
-            dataTypes[customTypeName] = new Common.Models.CustomDataType
+            dataTypes[customTypeName] = new CustomDataType
             {
                 BaseType = MapToStandardDataType(usage.Key),
                 CustomSeed = "PII-Sanitizer-2024-CrossDB-Deterministic-AU-v3.7.2",
@@ -225,27 +155,10 @@ public class ObfuscationConfigGenerator : IObfuscationConfigGenerator
         return dataTypes;
     }
 
-
-
-
-
     private int DetermineBatchSize(PIIAnalysisResult piiAnalysis)
     {
         // Fixed batch size of 1000 for all tables
         return 1000;
-    }
-
-    private int? DetermineTableBatchSize(TableWithPII table)
-    {
-        return table.RowCount switch
-        {
-            > 5000000 => 50000,
-            > 1000000 => 25000,
-            > 100000 => 15000,
-            > 10000 => 10000,
-            < 1000 => 500,
-            _ => null // Use global default
-        };
     }
 
     private int DetermineCacheSize(PIIAnalysisResult piiAnalysis)
@@ -274,28 +187,28 @@ public class ObfuscationConfigGenerator : IObfuscationConfigGenerator
         };
     }
 
-    private Common.Models.ValidationConfiguration? GenerateValidation(string dataType)
+    private ValidationConfiguration? GenerateValidation(string dataType)
     {
         return dataType switch
         {
-            SupportedDataTypes.Email => new Common.Models.ValidationConfiguration
+            SupportedDataTypes.Email => new ValidationConfiguration
             {
                 Regex = @"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$",
                 MinLength = 5,
                 MaxLength = 100
             },
-            SupportedDataTypes.Phone => new Common.Models.ValidationConfiguration
+            SupportedDataTypes.Phone => new ValidationConfiguration
             {
                 Regex = @"^(\+61|0)[2-478]\d{8}$",
                 MinLength = 10,
                 MaxLength = 15
             },
-            SupportedDataTypes.FirstName => new Common.Models.ValidationConfiguration
+            SupportedDataTypes.FirstName => new ValidationConfiguration
             {
                 MinLength = 2,
                 MaxLength = 50
             },
-            SupportedDataTypes.LastName => new Common.Models.ValidationConfiguration
+            SupportedDataTypes.LastName => new ValidationConfiguration
             {
                 MinLength = 2,
                 MaxLength = 50
@@ -303,7 +216,4 @@ public class ObfuscationConfigGenerator : IObfuscationConfigGenerator
             _ => null
         };
     }
-
-
-
 }

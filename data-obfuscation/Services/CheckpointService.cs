@@ -96,18 +96,29 @@ public class CheckpointService : ICheckpointService
     {
         try
         {
-            var configContent = File.ReadAllText(configPath);
-            var mappingContent = File.ReadAllText(mappingPath);
-            
-            // Combine contents and compute hash
-            var combined = $"{configContent}|{mappingContent}";
-            using var sha256 = System.Security.Cryptography.SHA256.Create();
-            var hashBytes = sha256.ComputeHash(System.Text.Encoding.UTF8.GetBytes(combined));
-            return Convert.ToBase64String(hashBytes).Replace("/", "_").Replace("+", "-")[..16];
+            // If both paths are the same (unified file), just use one content
+            if (configPath.Equals(mappingPath, StringComparison.OrdinalIgnoreCase))
+            {
+                var content = File.ReadAllText(configPath);
+                using var sha256 = System.Security.Cryptography.SHA256.Create();
+                var hashBytes = sha256.ComputeHash(System.Text.Encoding.UTF8.GetBytes(content));
+                return Convert.ToBase64String(hashBytes).Replace("/", "_").Replace("+", "-")[..16];
+            }
+            else
+            {
+                var configContent = File.ReadAllText(configPath);
+                var mappingContent = File.ReadAllText(mappingPath);
+                
+                // Combine contents and compute hash
+                var combined = $"{configContent}|{mappingContent}";
+                using var sha256 = System.Security.Cryptography.SHA256.Create();
+                var hashBytes = sha256.ComputeHash(System.Text.Encoding.UTF8.GetBytes(combined));
+                return Convert.ToBase64String(hashBytes).Replace("/", "_").Replace("+", "-")[..16];
+            }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to compute config hash");
+            _logger.LogError(ex, "Failed to compute config hash for config: {ConfigPath}, mapping: {MappingPath}", configPath, mappingPath);
             throw;
         }
     }

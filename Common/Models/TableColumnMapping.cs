@@ -32,8 +32,6 @@ public class TableMapping
     public string FullTableName { get; set; } = string.Empty;
     public List<string> PrimaryKey { get; set; } = new();
     public List<ColumnMapping> Columns { get; set; } = new();
-    public int TotalRows { get; set; } = 0;
-    public bool Enabled { get; set; } = true;
     
     [JsonIgnore]
     public string? Notes { get; set; }

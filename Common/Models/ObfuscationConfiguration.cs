@@ -11,8 +11,6 @@ public class ObfuscationConfiguration
     public Dictionary<string, CustomDataType> DataTypes { get; set; } = new();
     public ReferentialIntegrityConfiguration ReferentialIntegrity { get; set; } = new();
     public PostProcessingConfiguration PostProcessing { get; set; } = new();
-    public PerformanceConfiguration Performance { get; set; } = new();
-    public SecurityConfiguration Security { get; set; } = new();
 }
 
 public class ConfigurationMetadata
@@ -39,8 +37,6 @@ public class GlobalConfiguration
     public bool EnableValueCaching { get; set; } = true;
     public int CommandTimeoutSeconds { get; set; } = 300;
     public string MappingCacheDirectory { get; set; } = "mappings";
-    public string LogLevel { get; set; } = "Information";
-    public bool EnableProgressTracking { get; set; } = true;
 }
 
 public class CustomDataType
@@ -104,27 +100,4 @@ public class PostProcessingConfiguration
     public string ReportPath { get; set; } = "reports/obfuscation-{timestamp}.json";
     public bool ValidateResults { get; set; } = true;
     public bool BackupMappings { get; set; } = true;
-    public bool CompressMappings { get; set; } = false;
-    public bool GenerateSummary { get; set; } = true;
-    public List<string> NotificationEndpoints { get; set; } = new();
-}
-
-public class PerformanceConfiguration
-{
-    public int MaxMemoryUsageMB { get; set; } = 2048;
-    public int BufferSize { get; set; } = 8192;
-    public bool EnableParallelProcessing { get; set; } = true;
-    public int MaxDegreeOfParallelism { get; set; } = Environment.ProcessorCount;
-    public bool OptimizeForThroughput { get; set; } = true;
-    public int ConnectionPoolSize { get; set; } = 10;
-}
-
-public class SecurityConfiguration
-{
-    public bool EncryptMappings { get; set; } = false;
-    public string? EncryptionKey { get; set; }
-    public bool HashSensitiveData { get; set; } = false;
-    public bool AuditEnabled { get; set; } = true;
-    public string AuditLogPath { get; set; } = "audit/obfuscation-audit-{timestamp}.log";
-    public List<string> SensitiveConfigKeys { get; set; } = new() { "ConnectionString", "EncryptionKey" };
 }

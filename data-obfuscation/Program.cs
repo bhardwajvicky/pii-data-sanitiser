@@ -2,7 +2,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Serilog;
-using System.Text.Json;
 using DataObfuscation.Core;
 using DataObfuscation.Configuration;
 using DataObfuscation.Data;
@@ -23,14 +22,12 @@ class Program
         {
             if (args.Length == 0)
             {
-                Console.WriteLine("Usage: DataObfuscation.exe <config-file.json> [--dry-run] [--validate-only]");
-                Console.WriteLine("   or: DataObfuscation.exe <mapping-file.json> <config-file.json> [--dry-run] [--validate-only]");
+                Console.WriteLine("Usage: DataObfuscation.exe <unified-mapping-file.json> [--dry-run] [--validate-only]");
                 Console.WriteLine();
                 Console.WriteLine("Examples:");
-                Console.WriteLine("  DataObfuscation.exe production-config.json");
-                Console.WriteLine("  DataObfuscation.exe AdventureWorks2019-mapping.json AdventureWorks2019-config.json");
-                Console.WriteLine("  DataObfuscation.exe test-config.json --dry-run");
-                Console.WriteLine("  DataObfuscation.exe config.json --validate-only");
+                Console.WriteLine("  DataObfuscation.exe adv2-mapping.json");
+                Console.WriteLine("  DataObfuscation.exe adv2-mapping.json --dry-run");
+                Console.WriteLine("  DataObfuscation.exe adv2-mapping.json --validate-only");
                 return 1;
             }
 
@@ -38,40 +35,28 @@ class Program
             var validateOnly = args.Contains("--validate-only");
             var nonFlagArgs = args.Where(arg => !arg.StartsWith("--")).ToArray();
 
+            if (nonFlagArgs.Length != 1)
+            {
+                Console.WriteLine("Error: Expected exactly one mapping file path.");
+                Console.WriteLine("Usage: DataObfuscation.exe <unified-mapping-file.json> [--dry-run] [--validate-only]");
+                return 1;
+            }
+
             var host = CreateHostBuilder(args).Build();
             
             using var scope = host.Services.CreateScope();
-            var configParser = scope.ServiceProvider.GetRequiredService<IConfigurationParser>();
+            var unifiedConfigParser = scope.ServiceProvider.GetRequiredService<IUnifiedConfigurationParser>();
             var configValidator = scope.ServiceProvider.GetRequiredService<IConfigurationValidator>();
             var obfuscationEngine = scope.ServiceProvider.GetRequiredService<IObfuscationEngine>();
             var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
 
             logger.LogInformation("Starting Data Obfuscation Tool");
             
-            ObfuscationConfiguration config;
-            string mappingPath = string.Empty;
-            string configPath = string.Empty;
+            var mappingFilePath = nonFlagArgs[0];
+            logger.LogInformation("Unified mapping file: {File}", mappingFilePath);
             
-            if (nonFlagArgs.Length == 1)
-            {
-                // Single file mode (legacy)
-                configPath = nonFlagArgs[0];
-                logger.LogInformation("Configuration file: {ConfigFile}", configPath);
-                config = await configParser.LoadConfigurationAsync(configPath);
-            }
-            else if (nonFlagArgs.Length == 2)
-            {
-                // Two file mode (mapping + config)
-                mappingPath = nonFlagArgs[0];
-                configPath = nonFlagArgs[1];
-                logger.LogInformation("Mapping file: {MappingFile}, Configuration file: {ConfigFile}", mappingPath, configPath);
-                config = await configParser.LoadConfigurationAsync(mappingPath, configPath);
-            }
-            else
-            {
-                Console.WriteLine("Invalid number of arguments. Expected 1 or 2 file paths.");
-                return 1;
-            }
+            // Load unified configuration
+            var config = await unifiedConfigParser.LoadUnifiedConfigurationAsync(mappingFilePath);
             
             // Always validate configuration
             var validationResult = configValidator.ValidateConfiguration(config);
@@ -115,7 +100,7 @@ class Program
                 return 0;
             }
 
-            var result = await obfuscationEngine.ExecuteAsync(config, configPath, mappingPath, resumeIfPossible: true);
+            var result = await obfuscationEngine.ExecuteAsync(config, mappingFilePath, mappingFilePath, resumeIfPossible: true);
             
             if (result.Success)
             {
@@ -147,7 +132,7 @@ class Program
             .UseSerilog()
             .ConfigureServices((context, services) =>
             {
-                services.AddScoped<IConfigurationParser, ConfigurationParser>();
+                services.AddScoped<IUnifiedConfigurationParser, UnifiedConfigurationParser>();
                 services.AddScoped<IConfigurationValidator, ConfigurationValidator>();
                 services.AddScoped<IObfuscationEngine, ObfuscationEngine>();
                 services.AddScoped<IDeterministicAustralianProvider, DeterministicAustralianProvider>();
