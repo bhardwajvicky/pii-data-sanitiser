@@ -26,7 +26,6 @@ public class ObfuscationEngine : IObfuscationEngine
     private readonly IFailureLogger _failureLogger;
     private readonly ICheckpointService _checkpointService;
     private CheckpointState? _currentCheckpoint;
-    private readonly SemaphoreSlim _checkpointLock = new SemaphoreSlim(1, 1);
 
     public ObfuscationEngine(
         ILogger<ObfuscationEngine> logger,
@@ -516,32 +515,24 @@ public class ObfuscationEngine : IObfuscationEngine
             // Update checkpoint for this batch
             if (_currentCheckpoint != null && tableProgress != null)
             {
-                await _checkpointLock.WaitAsync();
-                try
+                var batchProgress = new CheckpointBatchProgress
                 {
-                    var batchProgress = new CheckpointBatchProgress
-                    {
-                        BatchNumber = batchNumber,
-                        Offset = offset,
-                        Size = batchSize,
-                        IsProcessed = true,
-                        ProcessedAt = DateTime.UtcNow,
-                        RowsProcessed = updateResult.SuccessfulRows
-                    };
-                    
-                    tableProgress.Batches.Add(batchProgress);
-                    tableProgress.ProcessedRows += updateResult.SuccessfulRows;
-                    
-                    _currentCheckpoint.TotalRowsProcessed += updateResult.SuccessfulRows;
-                    _currentCheckpoint.LastUpdatedAt = DateTime.UtcNow;
-                    
-                    // Save checkpoint after each batch
-                    await _checkpointService.SaveCheckpointAsync(_currentCheckpoint);
-                }
-                finally
-                {
-                    _checkpointLock.Release();
-                }
+                    BatchNumber = batchNumber,
+                    Offset = offset,
+                    Size = batchSize,
+                    IsProcessed = true,
+                    ProcessedAt = DateTime.UtcNow,
+                    RowsProcessed = updateResult.SuccessfulRows
+                };
+                
+                tableProgress.Batches.Add(batchProgress);
+                tableProgress.ProcessedRows += updateResult.SuccessfulRows;
+                
+                _currentCheckpoint.TotalRowsProcessed += updateResult.SuccessfulRows;
+                _currentCheckpoint.LastUpdatedAt = DateTime.UtcNow;
+                
+                // Save checkpoint after each batch (thread-safe)
+                await _checkpointService.SaveCheckpointAsync(_currentCheckpoint);
             }
             
             if (updateResult.FailedRows.Any())

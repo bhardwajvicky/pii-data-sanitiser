@@ -11,10 +11,18 @@ public interface ICheckpointService
     string ComputeConfigHash(string configPath, string mappingPath);
 }
 
+/// <summary>
+/// Thread-safe checkpoint service for managing obfuscation progress.
+/// Uses file-level synchronization to prevent race conditions when multiple threads
+/// attempt to read/write checkpoint files simultaneously.
+/// </summary>
 public class CheckpointService : ICheckpointService
 {
     private readonly ILogger<CheckpointService> _logger;
     private readonly string _checkpointDirectory;
+    
+    // Static lock object for file-level synchronization
+    private static readonly SemaphoreSlim _fileLock = new SemaphoreSlim(1, 1);
 
     public CheckpointService(ILogger<CheckpointService> logger)
     {
@@ -36,6 +44,7 @@ public class CheckpointService : ICheckpointService
             return null;
         }
 
+        await _fileLock.WaitAsync();
         try
         {
             var json = await File.ReadAllTextAsync(checkpointPath);
@@ -49,12 +58,17 @@ public class CheckpointService : ICheckpointService
             _logger.LogError(ex, "Failed to load checkpoint for config hash: {ConfigHash}", configHash);
             return null;
         }
+        finally
+        {
+            _fileLock.Release();
+        }
     }
 
     public async Task SaveCheckpointAsync(CheckpointState state)
     {
         var checkpointPath = GetCheckpointPath(state.ConfigHash);
         
+        await _fileLock.WaitAsync();
         try
         {
             var json = JsonSerializer.Serialize(state, new JsonSerializerOptions 
@@ -62,7 +76,17 @@ public class CheckpointService : ICheckpointService
                 WriteIndented = true 
             });
             
-            await File.WriteAllTextAsync(checkpointPath, json);
+            // Use atomic write operation to prevent corruption
+            var tempPath = checkpointPath + ".tmp";
+            await File.WriteAllTextAsync(tempPath, json);
+            
+            // Atomic move operation (rename) to replace the file
+            if (File.Exists(checkpointPath))
+            {
+                File.Delete(checkpointPath);
+            }
+            File.Move(tempPath, checkpointPath);
+            
             _logger.LogDebug("Saved checkpoint for config hash: {ConfigHash}", state.ConfigHash);
         }
         catch (Exception ex)
@@ -70,26 +94,33 @@ public class CheckpointService : ICheckpointService
             _logger.LogError(ex, "Failed to save checkpoint for config hash: {ConfigHash}", state.ConfigHash);
             throw;
         }
+        finally
+        {
+            _fileLock.Release();
+        }
     }
 
-    public Task ClearCheckpointAsync(string configHash)
+    public async Task ClearCheckpointAsync(string configHash)
     {
         var checkpointPath = GetCheckpointPath(configHash);
         
-        if (File.Exists(checkpointPath))
+        await _fileLock.WaitAsync();
+        try
         {
-            try
+            if (File.Exists(checkpointPath))
             {
                 File.Delete(checkpointPath);
                 _logger.LogInformation("Cleared checkpoint for config hash: {ConfigHash}", configHash);
             }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to clear checkpoint for config hash: {ConfigHash}", configHash);
-            }
         }
-        
-        return Task.CompletedTask;
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to clear checkpoint for config hash: {ConfigHash}", configHash);
+        }
+        finally
+        {
+            _fileLock.Release();
+        }
     }
 
     public string ComputeConfigHash(string configPath, string mappingPath)
