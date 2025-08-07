@@ -187,12 +187,12 @@ public class ObfuscationEngine : IObfuscationEngine
                 _logger.LogInformation("Tables processed: {TablesProcessed}, Rows processed: {RowsProcessed:N0}", 
                     result.TablesProcessed, result.RowsProcessed);
                 
-                // Mark checkpoint as completed
+                // Clear checkpoint on successful completion to ensure future runs start fresh
                 if (_currentCheckpoint != null)
                 {
-                    _currentCheckpoint.Status = "Completed";
-                    _currentCheckpoint.LastUpdatedAt = DateTime.UtcNow;
-                    await _checkpointService.SaveCheckpointAsync(_currentCheckpoint);
+                    _logger.LogInformation("Clearing checkpoint file after successful completion");
+                    await _checkpointService.ClearCheckpointAsync(_currentCheckpoint.ConfigHash);
+                    _currentCheckpoint = null;
                 }
             }
             else

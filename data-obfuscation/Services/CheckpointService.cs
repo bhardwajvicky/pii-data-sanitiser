@@ -9,12 +9,19 @@ public interface ICheckpointService
     Task SaveCheckpointAsync(CheckpointState state);
     Task ClearCheckpointAsync(string configHash);
     string ComputeConfigHash(string configPath, string mappingPath);
+    Task<CheckpointState?> GetCheckpointStatusAsync(string configHash);
 }
 
 /// <summary>
 /// Thread-safe checkpoint service for managing obfuscation progress.
 /// Uses file-level synchronization to prevent race conditions when multiple threads
 /// attempt to read/write checkpoint files simultaneously.
+/// 
+/// Checkpoint Lifecycle:
+/// - Created when obfuscation starts
+/// - Updated during batch processing
+/// - Automatically cleared on successful completion
+/// - Preserved on failure for potential resume
 /// </summary>
 public class CheckpointService : ICheckpointService
 {
@@ -152,6 +159,11 @@ public class CheckpointService : ICheckpointService
             _logger.LogError(ex, "Failed to compute config hash for config: {ConfigPath}, mapping: {MappingPath}", configPath, mappingPath);
             throw;
         }
+    }
+
+    public async Task<CheckpointState?> GetCheckpointStatusAsync(string configHash)
+    {
+        return await LoadCheckpointAsync(configHash);
     }
 
     private string GetCheckpointPath(string configHash)
