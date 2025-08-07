@@ -113,6 +113,8 @@ public class ObfuscationConfigGenerator : IObfuscationConfigGenerator
             "DriverName" => SupportedDataTypes.FullName,
             "AustralianFullName" => SupportedDataTypes.FullName,
             "ContactEmail" => SupportedDataTypes.Email,
+            "Email" => SupportedDataTypes.Email,
+            "EmailAddress" => SupportedDataTypes.Email,
             "DriverPhone" => SupportedDataTypes.Phone,
             "Address" => SupportedDataTypes.AddressLine1,
             "OperatorName" => SupportedDataTypes.CompanyName,
@@ -134,25 +136,65 @@ public class ObfuscationConfigGenerator : IObfuscationConfigGenerator
         {
             foreach (var column in table.PIIColumns)
             {
-                dataTypeUsage[column.DataType] = dataTypeUsage.GetValueOrDefault(column.DataType, 0) + 1;
+                var standardDataType = MapToStandardDataType(column.DataType);
+                dataTypeUsage[standardDataType] = dataTypeUsage.GetValueOrDefault(standardDataType, 0) + 1;
             }
         }
 
-        // Create custom data types for frequently used types
-        foreach (var usage in dataTypeUsage.Where(u => u.Value >= 2))
+        // Only create custom data types for data types that are actually used
+        // and only when they add meaningful value beyond just a custom seed
+        foreach (var usage in dataTypeUsage)
         {
-            var customTypeName = $"{piiAnalysis.DatabaseName}{MapToStandardDataType(usage.Key)}";
-            dataTypes[customTypeName] = new CustomDataType
+            var standardDataType = usage.Key;
+            var usageCount = usage.Value;
+            
+            // Only create custom data types for frequently used types (2+ occurrences)
+            // and only for types that benefit from custom configuration
+            if (usageCount >= 2 && ShouldCreateCustomDataType(standardDataType))
             {
-                BaseType = MapToStandardDataType(usage.Key),
-                CustomSeed = "PII-Sanitizer-2024-CrossDB-Deterministic-AU-v3.7.2",
-                PreserveLength = ShouldPreserveLength(usage.Key),
-                Validation = GenerateValidation(MapToStandardDataType(usage.Key)),
-                Description = $"{MapToStandardDataType(usage.Key)} with {piiAnalysis.DatabaseName}-specific seeding"
-            };
+                // Check if this custom type would add meaningful value
+                var validation = GenerateValidation(standardDataType);
+                var shouldPreserveLength = ShouldPreserveLength(standardDataType);
+                
+                // Only create custom type if it adds validation, preserve length, or other meaningful config
+                if (validation != null || shouldPreserveLength || HasSpecialRequirements(standardDataType))
+                {
+                    dataTypes[standardDataType] = new CustomDataType
+                    {
+                        BaseType = standardDataType,
+                        CustomSeed = "PII-Sanitizer-2024-CrossDB-Deterministic-AU-v3.7.2",
+                        PreserveLength = shouldPreserveLength,
+                        Validation = validation,
+                        Description = $"{standardDataType} with {piiAnalysis.DatabaseName}-specific configuration"
+                    };
+                }
+                // If no special requirements, don't create a custom type - use the base type directly
+            }
         }
 
         return dataTypes;
+    }
+
+    private bool ShouldCreateCustomDataType(string dataType)
+    {
+        // Only create custom data types for types that benefit from custom seeding
+        // and are commonly used across multiple tables
+        return dataType switch
+        {
+            SupportedDataTypes.FirstName => true,
+            SupportedDataTypes.LastName => true,
+            SupportedDataTypes.FullName => true,
+            SupportedDataTypes.Email => true,
+            SupportedDataTypes.Phone => true,
+            SupportedDataTypes.AddressLine1 => true,
+            SupportedDataTypes.City => true,
+            SupportedDataTypes.State => true,
+            SupportedDataTypes.PostCode => true,
+            SupportedDataTypes.CompanyName => true,
+            SupportedDataTypes.CreditCard => true,
+            SupportedDataTypes.LicenseNumber => true,
+            _ => false
+        };
     }
 
     private int DetermineBatchSize(PIIAnalysisResult piiAnalysis)
@@ -214,6 +256,22 @@ public class ObfuscationConfigGenerator : IObfuscationConfigGenerator
                 MaxLength = 50
             },
             _ => null
+        };
+    }
+
+    private bool HasSpecialRequirements(string dataType)
+    {
+        // Only create custom types for data types that have special requirements
+        // beyond just a custom seed
+        return dataType switch
+        {
+            SupportedDataTypes.CreditCard => true,  // Has validation and preserve length
+            SupportedDataTypes.Phone => true,       // Has validation and preserve length
+            SupportedDataTypes.LicenseNumber => true, // Has preserve length
+            SupportedDataTypes.Email => true,       // Has validation
+            SupportedDataTypes.FirstName => true,   // Has validation
+            SupportedDataTypes.LastName => true,    // Has validation and preserve length
+            _ => false
         };
     }
 }

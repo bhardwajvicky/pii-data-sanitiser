@@ -15,6 +15,7 @@ public class ObfuscationConfiguration
 public class GlobalConfiguration
 {
     public string ConnectionString { get; set; } = string.Empty;
+    public string DatabaseTechnology { get; set; } = "SqlServer";
     public string GlobalSeed { get; set; } = "DefaultSeed2024";
     public int BatchSize { get; set; } = 15000;
     public int SqlBatchSize { get; set; } = 100;

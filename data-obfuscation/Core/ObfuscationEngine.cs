@@ -19,7 +19,9 @@ public class ObfuscationEngine : IObfuscationEngine
     private readonly ILogger<ObfuscationEngine> _logger;
     private readonly IDeterministicAustralianProvider _dataProvider;
     private readonly IReferentialIntegrityManager _integrityManager;
-    private readonly IDataRepository _dataRepository;
+    private readonly IDatabaseRepositoryFactory _repositoryFactory;
+    private readonly ILoggerFactory _loggerFactory;
+    private IDataRepository _dataRepository;
     private readonly IProgressTracker _progressTracker;
     private readonly IFailureLogger _failureLogger;
     private readonly ICheckpointService _checkpointService;
@@ -30,7 +32,9 @@ public class ObfuscationEngine : IObfuscationEngine
         ILogger<ObfuscationEngine> logger,
         IDeterministicAustralianProvider dataProvider,
         IReferentialIntegrityManager integrityManager,
+        IDatabaseRepositoryFactory repositoryFactory,
         IDataRepository dataRepository,
+        ILoggerFactory loggerFactory,
         IProgressTracker progressTracker,
         IFailureLogger failureLogger,
         ICheckpointService checkpointService)
@@ -38,6 +42,8 @@ public class ObfuscationEngine : IObfuscationEngine
         _logger = logger;
         _dataProvider = dataProvider;
         _integrityManager = integrityManager;
+        _repositoryFactory = repositoryFactory;
+        _loggerFactory = loggerFactory;
         _dataRepository = dataRepository;
         _progressTracker = progressTracker;
         _failureLogger = failureLogger;
@@ -221,6 +227,14 @@ public class ObfuscationEngine : IObfuscationEngine
     private async Task InitializeAsync(ObfuscationConfiguration config)
     {
         _logger.LogInformation("Initializing obfuscation engine");
+
+        // Initialize the correct repository based on database technology
+        var technology = string.IsNullOrEmpty(config.Global.DatabaseTechnology) 
+            ? DatabaseTechnologyHelper.DetectDatabaseTechnology(config.Global.ConnectionString)
+            : config.Global.DatabaseTechnology;
+        
+        _dataRepository = _repositoryFactory.CreateRepository(technology, _loggerFactory);
+        _logger.LogInformation("Using {Technology} repository for database operations", technology);
 
         await _dataRepository.InitializeAsync(config.Global.ConnectionString);
 

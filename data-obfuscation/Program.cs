@@ -58,6 +58,17 @@ class Program
             // Load unified configuration
             var config = await unifiedConfigParser.LoadUnifiedConfigurationAsync(mappingFilePath);
             
+            // Detect database technology if not specified
+            if (string.IsNullOrEmpty(config.Global.DatabaseTechnology))
+            {
+                config.Global.DatabaseTechnology = DatabaseTechnologyHelper.DetectDatabaseTechnology(config.Global.ConnectionString);
+                logger.LogInformation("Auto-detected database technology: {Technology}", config.Global.DatabaseTechnology);
+            }
+            else
+            {
+                logger.LogInformation("Using specified database technology: {Technology}", config.Global.DatabaseTechnology);
+            }
+            
             // Always validate configuration
             var validationResult = configValidator.ValidateConfiguration(config);
             
@@ -137,7 +148,15 @@ class Program
                 services.AddScoped<IObfuscationEngine, ObfuscationEngine>();
                 services.AddScoped<IDeterministicAustralianProvider, DeterministicAustralianProvider>();
                 services.AddScoped<IReferentialIntegrityManager, ReferentialIntegrityManager>();
-                services.AddScoped<IDataRepository, SqlServerRepository>();
+                services.AddScoped<IDatabaseRepositoryFactory, DatabaseRepositoryFactory>();
+                services.AddScoped<IDataRepository>(provider =>
+                {
+                    var loggerFactory = provider.GetRequiredService<ILoggerFactory>();
+                    var factory = provider.GetRequiredService<IDatabaseRepositoryFactory>();
+                    
+                    // Default to SQL Server - will be overridden when config is loaded
+                    return factory.CreateRepository("SqlServer", loggerFactory);
+                });
                 services.AddScoped<IProgressTracker, ProgressTracker>();
                 services.AddScoped<IFailureLogger, FailureLogger>();
                 services.AddScoped<ICheckpointService, CheckpointService>();

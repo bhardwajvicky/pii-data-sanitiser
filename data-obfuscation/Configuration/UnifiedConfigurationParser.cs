@@ -67,6 +67,7 @@ public class UnifiedConfigurationParser : IUnifiedConfigurationParser
             Global = new GlobalConfiguration
             {
                 ConnectionString = unifiedMapping.Global.ConnectionString,
+                DatabaseTechnology = unifiedMapping.Global.DatabaseTechnology,
                 GlobalSeed = unifiedMapping.Global.GlobalSeed,
                 BatchSize = unifiedMapping.Global.BatchSize,
                 SqlBatchSize = unifiedMapping.Global.SqlBatchSize,

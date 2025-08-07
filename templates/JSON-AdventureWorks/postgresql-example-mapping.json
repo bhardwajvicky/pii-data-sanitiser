@@ -1,0 +1,112 @@
+{
+  "Global": {
+    "ConnectionString": "Host=localhost;Database=myapp;Username=postgres;Password=mypassword;Port=5432;",
+    "DatabaseTechnology": "PostgreSQL",
+    "GlobalSeed": "PII-Sanitizer-2024-CrossDB-Deterministic-AU-v3.7.2",
+    "BatchSize": 1000,
+    "SqlBatchSize": 500,
+    "ParallelThreads": 8,
+    "MaxCacheSize": 500000,
+    "DryRun": true,
+    "PersistMappings": true,
+    "EnableValueCaching": true,
+    "CommandTimeoutSeconds": 600,
+    "MappingCacheDirectory": "mappings/postgresql-example"
+  },
+  "DataTypes": {
+    "postgresqlAddressLine1": {
+      "BaseType": "AddressLine1",
+      "CustomSeed": "PII-Sanitizer-2024-CrossDB-Deterministic-AU-v3.7.2",
+      "PreserveLength": false,
+      "Validation": null,
+      "Formatting": null,
+      "Transformation": null,
+      "Description": "AddressLine1 with PostgreSQL-specific seeding"
+    },
+    "postgresqlEmail": {
+      "BaseType": "Email",
+      "CustomSeed": "PII-Sanitizer-2024-CrossDB-Deterministic-AU-v3.7.2",
+      "PreserveLength": false,
+      "Validation": null,
+      "Formatting": null,
+      "Transformation": null,
+      "Description": "Email with PostgreSQL-specific seeding"
+    }
+  },
+  "ReferentialIntegrity": {
+    "Enabled": false,
+    "Relationships": [],
+    "StrictMode": false,
+    "OnViolation": "warn"
+  },
+  "PostProcessing": {
+    "GenerateReport": true,
+    "ReportPath": "reports/postgresql-example-obfuscation-{timestamp}.json",
+    "ValidateResults": true,
+    "BackupMappings": true
+  },
+  "Tables": [
+    {
+      "TableName": "users",
+      "Schema": "public",
+      "FullTableName": "public.users",
+      "PrimaryKey": [
+        "id"
+      ],
+      "Columns": [
+        {
+          "ColumnName": "email",
+          "DataType": "Email",
+          "Enabled": true,
+          "IsNullable": false,
+          "PreserveLength": false
+        },
+        {
+          "ColumnName": "first_name",
+          "DataType": "FirstName",
+          "Enabled": true,
+          "IsNullable": false,
+          "PreserveLength": false
+        },
+        {
+          "ColumnName": "last_name",
+          "DataType": "LastName",
+          "Enabled": true,
+          "IsNullable": false,
+          "PreserveLength": false
+        }
+      ]
+    },
+    {
+      "TableName": "addresses",
+      "Schema": "public",
+      "FullTableName": "public.addresses",
+      "PrimaryKey": [
+        "id"
+      ],
+      "Columns": [
+        {
+          "ColumnName": "address_line1",
+          "DataType": "AddressLine1",
+          "Enabled": true,
+          "IsNullable": false,
+          "PreserveLength": false
+        },
+        {
+          "ColumnName": "city",
+          "DataType": "City",
+          "Enabled": true,
+          "IsNullable": false,
+          "PreserveLength": false
+        },
+        {
+          "ColumnName": "postal_code",
+          "DataType": "PostCode",
+          "Enabled": true,
+          "IsNullable": false,
+          "PreserveLength": true
+        }
+      ]
+    }
+  ]
+} 

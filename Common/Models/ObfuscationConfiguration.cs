@@ -27,6 +27,7 @@ public class ConfigurationMetadata
 public class GlobalConfiguration
 {
     public string ConnectionString { get; set; } = string.Empty;
+    public string DatabaseTechnology { get; set; } = "SqlServer";
     public string GlobalSeed { get; set; } = string.Empty;
     public int BatchSize { get; set; } = 10000;
     public int SqlBatchSize { get; set; } = 100;
