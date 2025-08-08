@@ -12,43 +12,86 @@
                     <li class="breadcrumb-item active" aria-current="page">@Model?.Name</li>
                 </ol>
             </nav>
-            
+
             @if (ViewBag.Error != null)
             {
                 <div class="alert alert-danger" role="alert">
                     @ViewBag.Error
                 </div>
             }
-            
+
             @if (Model != null)
             {
-                <div class="card mb-4">
-                    <div class="card-header">
-                        <h2 class="mb-0">@Model.Name</h2>
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h2 class="mb-0">@Model.Name</h2>
+                    <div class="d-flex gap-2">
+                        <form method="post" action="@Url.Action("RefreshSchema", "Home", new { id = Model.Id })">
+                            <button type="submit" class="btn btn-outline-primary">
+                                <i class="bi bi-arrow-clockwise"></i> Refresh schema
+                            </button>
+                        </form>
+                        <button type="button" class="btn btn-outline-secondary" id="btnExportJson">
+                            <i class="bi bi-download"></i> Export JSON
+                        </button>
                     </div>
-                    <div class="card-body">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <p><strong>Description:</strong> @(Model.Description ?? "No description")</p>
-                                <p><strong>Database Technology:</strong> <span class="badge bg-primary">@Model.DatabaseTechnology</span></p>
-                            </div>
-                            <div class="col-md-6">
-                                <p><strong>Status:</strong> 
-                                    @if (Model.IsActive)
-                                    {
-                                        <span class="badge bg-success">Active</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="badge bg-secondary">Inactive</span>
-                                    }
-                                </p>
-                                <p><strong>Tables:</strong> @Model.Tables.Count</p>
-                            </div>
+                </div>
+
+                <div class="card mb-4">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Global settings</h5>
+                        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#globalSettings">Toggle</button>
+                    </div>
+                    <div id="globalSettings" class="collapse show">
+                        <div class="card-body">
+                            <div id="globalNotice" class="alert d-none" role="alert"></div>
+                            <form id="globalForm" class="row g-3">
+                                <div class="col-12">
+                                    <label class="form-label">Connection string</label>
+                                    <input class="form-control form-control-sm" name="ConnectionString" value="@Model.ConnectionString" />
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Database Technology</label>
+                                    <input class="form-control form-control-sm" name="DatabaseTechnology" value="@Model.DatabaseTechnology" readonly />
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Global seed</label>
+                                    <input class="form-control form-control-sm" name="GlobalSeed" value="@Model.GlobalSeed" />
+                                </div>
+                                <div class="col-md-4 d-flex align-items-end">
+                                    <span class="ms-2">Status: @(Model.IsActive ? "Active" : "Inactive")</span>
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label">Batch size</label>
+                                    <input type="number" class="form-control form-control-sm" name="BatchSize" value="@Model.BatchSize" />
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label">SQL batch size</label>
+                                    <input type="number" class="form-control form-control-sm" name="SqlBatchSize" value="@Model.SqlBatchSize" />
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label">Threads</label>
+                                    <input type="number" class="form-control form-control-sm" name="ParallelThreads" value="@Model.ParallelThreads" />
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Max cache size</label>
+                                    <input type="number" class="form-control form-control-sm" name="MaxCacheSize" value="@Model.MaxCacheSize" />
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Command timeout (s)</label>
+                                    <input type="number" class="form-control form-control-sm" name="CommandTimeoutSeconds" value="@Model.CommandTimeoutSeconds" />
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label">Mapping cache directory</label>
+                                    <input class="form-control form-control-sm" name="MappingCacheDirectory" value="@Model.MappingCacheDirectory" />
+                                </div>
+                                <div class="col-12 d-flex justify-content-end">
+                                    <button id="btnSaveGlobal" type="button" class="btn btn-sm btn-primary">Save settings</button>
+                                </div>
+                            </form>
                         </div>
                     </div>
                 </div>
-                
+
                 <div class="card">
                     <div class="card-header">
                         <h3 class="mb-0">Database Tables & Mappings</h3>
@@ -56,111 +99,115 @@
                     <div class="card-body">
                         @if (Model.Tables.Any())
                         {
-                            <div class="accordion" id="tablesAccordion">
-                                @for (int i = 0; i < Model.Tables.Count; i++)
-                                {
-                                    var table = Model.Tables[i];
-                                    var accordionId = $"table-{i}";
-                                    
-                                    <div class="accordion-item">
-                                        <h2 class="accordion-header" id="heading-@accordionId">
-                                            <button class="accordion-button @(i > 0 ? "collapsed" : "")" type="button" 
-                                                    data-bs-toggle="collapse" data-bs-target="#collapse-@accordionId" 
-                                                    aria-expanded="@(i == 0 ? "true" : "false")" aria-controls="collapse-@accordionId">
-                                                <div class="d-flex justify-content-between align-items-center w-100 me-3">
-                                                    <span>
-                                                        <strong>@table.FullTableName</strong>
-                                                        @if (table.IsAnalyzed)
+                            <div class="table-responsive">
+                                <table class="table">
+                                    <thead>
+                                        <tr>
+                                            <th>Table</th>
+                                            <th class="text-center">Total Columns</th>
+                                            <th class="text-center sortable" data-sort="mapped">Mapped Columns</th>
+                                            <th></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tablesBody">
+                                        @for (int i = 0; i < Model.Tables.Count; i++)
+                                        {
+                                            var t = Model.Tables[i];
+                                            var mappedCount = t.Columns.Count(c => c.ObfuscationMapping != null);
+                                            var collapseId = $"t-{i}";
+                                            <tr data-mappedcount="@mappedCount" data-totalcount="@t.Columns.Count" class="@(mappedCount > 0 ? "table-success-subtle" : "")">
+                                                <td>
+                                                    <strong>@t.FullTableName</strong>
+                                                    @if (mappedCount > 0)
+                                                    {
+                                                        <span class="badge bg-success ms-2 has-mappings-pill">Has mappings</span>
+                                                    }
+                                                </td>
+                                                <td class="text-center">@t.Columns.Count</td>
+                                                <td class="text-center">
+                                                    <span class="badge mapped-count-badge @(mappedCount > 0 ? "bg-success" : "bg-secondary")" style="font-size:0.95rem;">@mappedCount</span>
+                                                </td>
+                                                <td class="text-end">
+                                                    <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#@collapseId">
+                                                        Columns
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                            <tr class="collapse" id="@collapseId">
+                                                <td colspan="4">
+                                                    <div class="row g-2">
+                                                        @foreach (var c in t.Columns.OrderBy(c => c.OrdinalPosition))
                                                         {
-                                                            <span class="badge bg-success ms-2">Analyzed</span>
-                                                        }
-                                                    </span>
-                                                    <span class="text-muted">@table.Columns.Count columns</span>
-                                                </div>
-                                            </button>
-                                        </h2>
-                                        <div id="collapse-@accordionId" class="accordion-collapse collapse @(i == 0 ? "show" : "")" 
-                                             aria-labelledby="heading-@accordionId" data-bs-parent="#tablesAccordion">
-                                            <div class="accordion-body">
-                                                <div class="table-responsive">
-                                                    <table class="table table-sm">
-                                                        <thead>
-                                                            <tr>
-                                                                <th>Column</th>
-                                                                <th>Data Type</th>
-                                                                <th>Nullable</th>
-                                                                <th>Primary Key</th>
-                                                                <th>Obfuscation Type</th>
-                                                                <th>Status</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody>
-                                                            @foreach (var column in table.Columns.OrderBy(c => c.OrdinalPosition))
-                                                            {
-                                                                <tr>
-                                                                    <td>
-                                                                        <strong>@column.ColumnName</strong>
-                                                                        @if (column.MaxLength.HasValue)
-                                                                        {
-                                                                            <small class="text-muted">(@column.MaxLength)</small>
-                                                                        }
-                                                                    </td>
-                                                                    <td>
-                                                                        <code>@column.SqlDataType</code>
-                                                                    </td>
-                                                                    <td>
-                                                                        @if (column.IsNullable)
-                                                                        {
-                                                                            <span class="badge bg-warning">Nullable</span>
-                                                                        }
-                                                                        else
-                                                                        {
-                                                                            <span class="badge bg-secondary">Not Null</span>
-                                                                        }
-                                                                    </td>
-                                                                    <td>
-                                                                        @if (column.IsPrimaryKey)
-                                                                        {
-                                                                            <span class="badge bg-primary">PK</span>
-                                                                        }
-                                                                    </td>
-                                                                    <td>
-                                                                        @if (column.ObfuscationMapping != null)
-                                                                        {
-                                                                            <span class="badge bg-info">@column.ObfuscationMapping.ObfuscationDataType</span>
-                                                                            @if (column.ObfuscationMapping.IsManuallyConfigured)
+                                                            var isMapped = c.ObfuscationMapping != null;
+                                                            <div class="col-md-6 col-lg-4">
+                                                                <div class="card column-card border-@(isMapped ? "success" : "secondary") @(isMapped ? "bg-mapped" : "bg-unmapped")">
+                                                                    <div class="card-header d-flex justify-content-between align-items-center py-1 px-2">
+                                                                        <div>
+                                                                            <strong>@c.ColumnName</strong>
+                                                                            @if (c.MaxLength.HasValue)
                                                                             {
-                                                                                <span class="badge bg-dark">Manual</span>
+                                                                                <small class="text-muted">(@c.MaxLength)</small>
                                                                             }
-                                                                        }
-                                                                        else
-                                                                        {
-                                                                            <span class="text-muted">None</span>
-                                                                        }
-                                                                    </td>
-                                                                    <td>
-                                                                        @if (column.ObfuscationMapping?.IsEnabled == true)
-                                                                        {
-                                                                            <span class="badge bg-success">Enabled</span>
-                                                                        }
-                                                                        else if (column.ObfuscationMapping != null)
-                                                                        {
-                                                                            <span class="badge bg-danger">Disabled</span>
-                                                                        }
-                                                                        else
-                                                                        {
-                                                                            <span class="badge bg-secondary">No Mapping</span>
-                                                                        }
-                                                                    </td>
-                                                                </tr>
-                                                            }
-                                                        </tbody>
-                                                    </table>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                }
+                                                                        </div>
+                                                                        <div>
+                                                                            @if (isMapped)
+                                                                            {
+                                                                                <span class="badge bg-success">Mapped</span>
+                                                                                <span class="badge bg-info">@c.ObfuscationMapping!.ObfuscationDataType</span>
+                                                                            }
+                                                                            else
+                                                                            {
+                                                                                <span class="badge bg-secondary">Unmapped</span>
+                                                                            }
+                                                                        </div>
+                                                                    </div>
+                                                                    <div class="card-body py-2 px-2">
+                                                                        <div class="mb-1 small text-muted">
+                                                                            <code>@c.SqlDataType</code>
+                                                                            @if (c.IsPrimaryKey) { <span class="badge bg-primary ms-1">PK</span> }
+                                                                            @if (c.IsNullable) { <span class="badge bg-warning ms-1">Nullable</span> } else { <span class="badge bg-secondary ms-1">Not Null</span> }
+                                                                        </div>
+                                                                        <form class="d-flex align-items-center gap-2 flex-wrap mapping-form" method="post" action="@Url.Action("UpdateMapping", "Home")" data-column-id="@c.Id" data-product-id="@Model.Id">
+                                                                            <input type="hidden" name="productId" value="@Model.Id" />
+                                                                            <input type="hidden" name="columnId" value="@c.Id" />
+                                                                            <div class="flex-grow-1">
+                                                                                <select class="form-select form-select-sm" name="obfuscationDataType">
+                                                                                        @{ var current = c.ObfuscationMapping?.ObfuscationDataType ?? "None"; }
+                                                                                        @if (current == "None") { <option value="None" selected>None</option> } else { <option value="None">None</option> }
+                                                                                        @if (ViewBag.SupportedTypes != null)
+                                                                                        {
+                                                                                            foreach (string tname in (IEnumerable<string>)ViewBag.SupportedTypes)
+                                                                                            {
+                                                                                                if (current == tname) {
+                                                                                                    <option value="@tname" selected>@tname</option>
+                                                                                                } else {
+                                                                                                    <option value="@tname">@tname</option>
+                                                                                                }
+                                                                                            }
+                                                                                        }
+                                                                                        @if (current == "Custom") { <option value="Custom" selected>Custom</option> } else { <option value="Custom">Custom</option> }
+                                                                                </select>
+                                                                            </div>
+                                                                            <div class="form-check small">
+                                                                                <input class="form-check-input" type="checkbox" name="isEnabled" id="en-@c.Id" @(c.ObfuscationMapping?.IsEnabled==true?"checked":null) />
+                                                                                <label class="form-check-label" for="en-@c.Id">Enabled</label>
+                                                                            </div>
+                                                                            <div class="form-check small">
+                                                                                <input class="form-check-input" type="checkbox" name="preserveLength" id="pl-@c.Id" @(c.ObfuscationMapping?.PreserveLength==true?"checked":null) />
+                                                                                <label class="form-check-label" for="pl-@c.Id">Preserve</label>
+                                                                            </div>
+                                                                            <button class="btn btn-sm btn-primary ms-auto" type="submit">Save</button>
+                                                                        </form>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        }
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
                             </div>
                         }
                         else
@@ -184,26 +231,179 @@
 
 @section Styles {
     <style>
-        .accordion-button:not(.collapsed) {
-            background-color: #e7f3ff;
-            color: #0c63e4;
-        }
-        
         .table-sm th,
-        .table-sm td {
-            padding: 0.5rem;
-            font-size: 0.875rem;
-        }
-        
-        .badge {
-            font-size: 0.75em;
-        }
-        
-        code {
-            background-color: #f8f9fa;
-            padding: 0.2rem 0.4rem;
-            border-radius: 0.25rem;
-            font-size: 0.875em;
-        }
+        .table-sm td { padding: 0.5rem; font-size: 0.875rem; }
+        code { background-color: #f8f9fa; padding: 0.2rem 0.4rem; border-radius: 0.25rem; font-size: 0.875em; }
+        .bg-mapped { background: #f0fff4; }
+        .bg-unmapped { background: #fafafa; }
+        .column-card { box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
+        .table-success-subtle { background-color: #eefaf0; }
     </style>
+}
+
+@section Scripts {
+    <script>
+        (function() {
+            const header = document.querySelector('th.sortable[data-sort="mapped"]');
+            if (!header) return;
+            let asc = false;
+            header.style.cursor = 'pointer';
+            header.title = 'Sort by mapped columns';
+            header.addEventListener('click', () => {
+                const tbody = document.getElementById('tablesBody');
+                const rows = Array.from(tbody.querySelectorAll('tr')).filter((_, idx) => idx % 2 === 0); // only table rows, skip collapse rows following each
+                asc = !asc;
+                rows.sort((a, b) => {
+                    const av = parseInt(a.getAttribute('data-mappedcount') || '0');
+                    const bv = parseInt(b.getAttribute('data-mappedcount') || '0');
+                    return asc ? av - bv : bv - av;
+                });
+                // Re-attach rows with their paired collapse row
+                rows.forEach(r => {
+                    const next = r.nextElementSibling; // collapse row
+                    tbody.appendChild(r);
+                    if (next && next.classList.contains('collapse')) tbody.appendChild(next);
+                });
+            });
+        })();
+        (function() {
+            function updateCardUI(card, mapped, typeName) {
+                card.classList.remove('border-secondary','bg-unmapped');
+                card.classList.remove('border-success','bg-mapped');
+                if (mapped) {
+                    card.classList.add('border-success','bg-mapped');
+                } else {
+                    card.classList.add('border-secondary','bg-unmapped');
+                }
+                // badges: Mapped/Unmapped and type
+                const header = card.querySelector('.card-header div:last-child');
+                if (header) {
+                    header.innerHTML = mapped
+                        ? `<span class="badge bg-success">Mapped</span> ${typeName ? `<span class=\"badge bg-info\">${typeName}</span>` : ''}`
+                        : `<span class="badge bg-secondary">Unmapped</span>`;
+                }
+            }
+
+            function updateTableMappedCount(card, mapped) {
+                const collapseRow = card.closest('tr.collapse');
+                if (!collapseRow) return;
+                const tableRow = collapseRow.previousElementSibling;
+                if (!tableRow) return;
+                const badge = tableRow.querySelector('.mapped-count-badge');
+                if (!badge) return;
+                const current = parseInt(badge.textContent || '0');
+                const next = Math.max(0, current + (mapped ? 1 : -1));
+                badge.textContent = String(next);
+                badge.classList.toggle('bg-success', next > 0);
+                badge.classList.toggle('bg-secondary', next === 0);
+                tableRow.classList.toggle('table-success-subtle', next > 0);
+                let pill = tableRow.querySelector('.has-mappings-pill');
+                if (next > 0) {
+                    if (!pill) {
+                        const td = tableRow.children[0];
+                        const span = document.createElement('span');
+                        span.className = 'badge bg-success ms-2 has-mappings-pill';
+                        span.textContent = 'Has mappings';
+                        td.appendChild(span);
+                    }
+                } else {
+                    if (pill) pill.remove();
+                }
+            }
+
+            // Use capture-phase delegated handler to intercept submits reliably
+            document.addEventListener('submit', function(evt) {
+                var form = evt.target;
+                if (!form || !form.classList || !form.classList.contains('mapping-form')) return;
+                evt.preventDefault();
+
+                var saveBtn = form.querySelector('button[type="submit"]');
+                if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving...'; }
+
+                var fd = new FormData(form);
+                var params = new URLSearchParams();
+                fd.forEach(function(value, key) { params.append(key, value); });
+
+                fetch(form.action, {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'fetch',
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
+                    },
+                    body: params
+                }).then(function(resp){ return resp.json(); })
+                  .then(function(data){
+                      var card = form.closest('.column-card');
+                      if (card) {
+                          updateCardUI(card, !!data.mapped, data.obfuscationDataType || null);
+                          updateTableMappedCount(card, !!data.mapped);
+                      }
+                  })
+                  .catch(function(){})
+                  .finally(function(){ if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save'; } });
+            }, true);
+            // Export button
+            const exportBtn = document.getElementById('btnExportJson');
+            if (exportBtn) {
+                exportBtn.addEventListener('click', function(){
+                    const pid = '@(ViewBag.ProductId)';
+                    if (!pid) return;
+                    const baseUrl = '@(ViewBag.ApiBaseUrl ?? "http://localhost:7001/")'.replace(/\/$/, '');
+                    const url = `${baseUrl}/api/products/${pid}/export-mapping`;
+                    fetch(url).then(function(res){
+                        var disp = res.headers.get('Content-Disposition') || '';
+                        var match = /filename="?([^";]+)"?/i.exec(disp);
+                        var filename = match ? match[1] : ('@(Model?.Name ?? "export")-mapping.json');
+                        return res.blob().then(function(blob){ return { blob: blob, filename: filename }; });
+                    }).then(function(result){
+                        const a = document.createElement('a');
+                        a.href = URL.createObjectURL(result.blob);
+                        a.download = result.filename;
+                        document.body.appendChild(a);
+                        a.click();
+                        a.remove();
+                    });
+                });
+            }
+
+            // Save global settings via AJAX
+            const btnSaveGlobal = document.getElementById('btnSaveGlobal');
+            if (btnSaveGlobal) {
+                btnSaveGlobal.addEventListener('click', function(){
+                    const pid = '@(ViewBag.ProductId)';
+                    if (!pid) return;
+                    const baseUrl = '@(ViewBag.ApiBaseUrl ?? "http://localhost:7001/")'.replace(/\/$/, '');
+                    const url = `${baseUrl}/api/products/${pid}/global-settings`;
+                    const form = document.getElementById('globalForm');
+                    const fd = new FormData(form);
+                    const body = {};
+                    fd.forEach(function(v, k){ body[k] = v; });
+                    fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(body)
+                    }).then(function(resp){
+                        const notice = document.getElementById('globalNotice');
+                        if (resp.ok) {
+                            notice.textContent = 'Settings saved successfully';
+                            notice.className = 'alert alert-success';
+                        } else {
+                            notice.textContent = 'Failed to save settings';
+                            notice.className = 'alert alert-danger';
+                        }
+                        // show for 5 seconds
+                        notice.classList.remove('d-none');
+                        setTimeout(function(){ notice.classList.add('d-none'); }, 5000);
+                    }).catch(function(){
+                        const notice = document.getElementById('globalNotice');
+                        notice.textContent = 'Failed to save settings';
+                        notice.className = 'alert alert-danger';
+                        notice.classList.remove('d-none');
+                        setTimeout(function(){ notice.classList.add('d-none'); }, 5000);
+                    });
+                });
+            }
+        })();
+    </script>
 }

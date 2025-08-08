@@ -355,28 +355,52 @@ INSERT INTO Roles (Name, Description) VALUES
 ('Viewer', 'Read-only access to assigned products');
 GO
 
--- Insert default supported data types
-INSERT INTO SupportedDataTypes (Name, Description) VALUES
-('DriverName', 'Person names (first, last, full names)'),
-('ContactEmail', 'Email addresses'),
-('DriverPhone', 'Phone numbers'),
-('AddressLine1', 'Street addresses'),
-('AddressLine2', 'Secondary address information'),
-('City', 'City names'),
-('PostCode', 'Postal/ZIP codes'),
+-- Insert default supported data types (aligned with Common/DataTypes/SupportedDataTypes.cs)
+DECLARE @ExpectedSupportedTypes TABLE (Name NVARCHAR(100) PRIMARY KEY, Description NVARCHAR(MAX));
+INSERT INTO @ExpectedSupportedTypes (Name, Description) VALUES
+('FirstName', 'Given names only (NOT full names)'),
+('LastName', 'Surnames only (NOT full names)'),
+('FullName', 'Full personal name/display name'),
+('Email', 'Email addresses'),
+('Phone', 'Phone numbers'),
+('FullAddress', 'Full address (all components combined)'),
+('AddressLine1', 'Primary address line (street number + name)'),
+('AddressLine2', 'Secondary address line (apartment/unit/suite)'),
+('City', 'City/Suburb/Town'),
+('Suburb', 'Alternative name for City (AU)'),
+('State', 'State/Province/County'),
+('StateAbbr', 'State abbreviation'),
+('PostCode', 'Postal/ZIP code'),
+('ZipCode', 'Alternative name for PostCode'),
+('Country', 'Country name'),
+('Address', 'Legacy address type - use specific components instead'),
+('Date', 'General date value'),
+('DateOfBirth', 'Date of Birth specifically'),
 ('CreditCard', 'Credit card numbers'),
-('LicenseNumber', 'Driver license and permit numbers'),
-('DateOfBirth', 'Birth dates'),
-('SSN', 'Social Security Numbers'),
-('TaxFileNumber', 'Tax identification numbers'),
-('BusinessNumber', 'Business registration numbers'),
-('BankAccount', 'Bank account numbers'),
-('IPAddress', 'IP addresses'),
-('URL', 'Web URLs'),
-('UserName', 'User login names'),
-('Password', 'Password fields'),
-('Comments', 'General comments and notes'),
-('Description', 'Descriptive text fields');
+('NINO', 'UK National Insurance Number'),
+('NationalInsuranceNumber', 'UK National Insurance Number (alias)'),
+('SortCode', 'UK bank sort code'),
+('BankSortCode', 'UK bank sort code (alias)'),
+('LicenseNumber', 'License numbers, permit IDs'),
+('CompanyName', 'Company/operator names'),
+('BusinessABN', 'Australian Business Number'),
+('BusinessACN', 'Australian Company Number'),
+('VehicleRegistration', 'Vehicle registration plates'),
+('VINNumber', 'Vehicle identification numbers'),
+('VehicleMakeModel', 'Vehicle make and model information'),
+('EngineNumber', 'Engine identification numbers'),
+('GPSCoordinate', 'GPS coordinates, location data'),
+('RouteCode', 'Route identifiers'),
+('DepotLocation', 'Depot/facility locations'),
+('UKPostcode', 'UK postal codes (e.g., SW1A 1AA)');
+
+MERGE SupportedDataTypes AS t
+USING @ExpectedSupportedTypes AS s
+    ON t.Name = s.Name
+WHEN MATCHED THEN
+    UPDATE SET t.Description = s.Description, t.IsActive = 1
+WHEN NOT MATCHED BY TARGET THEN
+    INSERT (Name, Description, IsActive) VALUES (s.Name, s.Description, 1);
 GO
 
 -- Insert default PII detection rules

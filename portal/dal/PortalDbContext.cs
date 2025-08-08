@@ -31,6 +31,9 @@ public class PortalDbContext : DbContext
             
             entity.HasIndex(e => e.Name);
             entity.HasIndex(e => e.IsActive);
+
+            // Inform EF Core that this table has a trigger so it avoids using a plain OUTPUT clause
+            entity.ToTable(tb => tb.HasTrigger("tr_Products_Audit"));
         });
 
         // DatabaseSchema configuration

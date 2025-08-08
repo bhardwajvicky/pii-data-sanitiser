@@ -7,6 +7,15 @@ public class ProductMappingsDto
     public string Description { get; set; } = string.Empty;
     public string DatabaseTechnology { get; set; } = string.Empty;
     public bool IsActive { get; set; }
+    // Global settings for export/config editing
+    public string ConnectionString { get; set; } = string.Empty;
+    public string GlobalSeed { get; set; } = string.Empty;
+    public int BatchSize { get; set; }
+    public int SqlBatchSize { get; set; }
+    public int ParallelThreads { get; set; }
+    public int MaxCacheSize { get; set; }
+    public int CommandTimeoutSeconds { get; set; }
+    public string MappingCacheDirectory { get; set; } = string.Empty;
     public List<TableMappingDto> Tables { get; set; } = new();
 }
 

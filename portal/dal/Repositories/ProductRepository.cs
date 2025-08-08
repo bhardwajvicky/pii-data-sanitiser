@@ -33,6 +33,7 @@ public class ProductRepository : IProductRepository
         return await _context.Products
             .Include(p => p.DatabaseSchemas)
                 .ThenInclude(ds => ds.TableColumns)
+                    .ThenInclude(tc => tc.ColumnObfuscationMapping)
             .FirstOrDefaultAsync(p => p.Id == id);
     }
 
@@ -41,6 +42,7 @@ public class ProductRepository : IProductRepository
         return await _context.Products
             .Include(p => p.DatabaseSchemas)
                 .ThenInclude(ds => ds.TableColumns)
+                    .ThenInclude(tc => tc.ColumnObfuscationMapping)
             .FirstOrDefaultAsync(p => p.Name == name);
     }
 
