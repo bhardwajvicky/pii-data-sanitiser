@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  # SQL Server Database
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=YourStrong@Passw0rd
+      - MSSQL_PID=Developer
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+      - ./database-schema.sql:/docker-entrypoint-initdb.d/database-schema.sql
+      - ./seed.sql:/docker-entrypoint-initdb.d/seed.sql
+    networks:
+      - portal-network
+
+  # API Service
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__PortalDb=Server=sqlserver;Database=obfuscate;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=true;
+    ports:
+      - "7001:80"
+    depends_on:
+      - sqlserver
+    networks:
+      - portal-network
+
+  # Web Service
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ApiBaseUrl=http://api/
+    ports:
+      - "7002:80"
+    depends_on:
+      - api
+    networks:
+      - portal-network
+
+volumes:
+  sqlserver_data:
+
+networks:
+  portal-network:
+    driver: bridge

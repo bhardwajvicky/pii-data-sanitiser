@@ -41,6 +41,64 @@ services:
     networks:
       - pii-network
 
+  # Portal Database
+  portal-db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: pii-portal-db
+    environment:
+      - ACCEPT_EULA=Y
+      - MSSQL_SA_PASSWORD=${DB_PASSWORD:-YourStrong!Password123}
+      - MSSQL_PID=Developer
+    ports:
+      - "1434:1433"
+    volumes:
+      - portal-db-data:/var/opt/mssql
+      - ./portal/database-schema.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - pii-network
+
+  # Web Portal API
+  portal-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pii-portal-api
+    working_dir: /app/portal/api
+    command: ["dotnet", "PortalApi.dll"]
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./portal:/app/portal
+      - ./logs:/app/logs
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ConnectionStrings__PortalDb=Server=portal-db;Database=obfuscate;User Id=sa;Password=${DB_PASSWORD:-YourStrong!Password123};TrustServerCertificate=true;
+    depends_on:
+      - portal-db
+    networks:
+      - pii-network
+
+  # Web Portal Frontend
+  portal-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pii-portal-web
+    working_dir: /app/portal/web
+    command: ["dotnet", "PortalWeb.dll"]
+    ports:
+      - "5001:5001"
+    volumes:
+      - ./portal:/app/portal
+      - ./logs:/app/logs
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - PortalApiUrl=http://portal-api:5000
+    depends_on:
+      - portal-api
+    networks:
+      - pii-network
+
   # Optional: SQL Server for testing
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-latest
@@ -64,4 +122,6 @@ networks:
 
 volumes:
   sqlserver-data:
+    driver: local
+  portal-db-data:
     driver: local

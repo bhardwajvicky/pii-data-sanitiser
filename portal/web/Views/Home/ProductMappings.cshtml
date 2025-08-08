@@ -1,0 +1,209 @@
+@model Contracts.DTOs.ProductMappingsDto
+@{
+    ViewData["Title"] = $"Product Mappings - {Model?.Name}";
+}
+
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="@Url.Action("Index", "Home")">Products</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">@Model?.Name</li>
+                </ol>
+            </nav>
+            
+            @if (ViewBag.Error != null)
+            {
+                <div class="alert alert-danger" role="alert">
+                    @ViewBag.Error
+                </div>
+            }
+            
+            @if (Model != null)
+            {
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h2 class="mb-0">@Model.Name</h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <p><strong>Description:</strong> @(Model.Description ?? "No description")</p>
+                                <p><strong>Database Technology:</strong> <span class="badge bg-primary">@Model.DatabaseTechnology</span></p>
+                            </div>
+                            <div class="col-md-6">
+                                <p><strong>Status:</strong> 
+                                    @if (Model.IsActive)
+                                    {
+                                        <span class="badge bg-success">Active</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-secondary">Inactive</span>
+                                    }
+                                </p>
+                                <p><strong>Tables:</strong> @Model.Tables.Count</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="mb-0">Database Tables & Mappings</h3>
+                    </div>
+                    <div class="card-body">
+                        @if (Model.Tables.Any())
+                        {
+                            <div class="accordion" id="tablesAccordion">
+                                @for (int i = 0; i < Model.Tables.Count; i++)
+                                {
+                                    var table = Model.Tables[i];
+                                    var accordionId = $"table-{i}";
+                                    
+                                    <div class="accordion-item">
+                                        <h2 class="accordion-header" id="heading-@accordionId">
+                                            <button class="accordion-button @(i > 0 ? "collapsed" : "")" type="button" 
+                                                    data-bs-toggle="collapse" data-bs-target="#collapse-@accordionId" 
+                                                    aria-expanded="@(i == 0 ? "true" : "false")" aria-controls="collapse-@accordionId">
+                                                <div class="d-flex justify-content-between align-items-center w-100 me-3">
+                                                    <span>
+                                                        <strong>@table.FullTableName</strong>
+                                                        @if (table.IsAnalyzed)
+                                                        {
+                                                            <span class="badge bg-success ms-2">Analyzed</span>
+                                                        }
+                                                    </span>
+                                                    <span class="text-muted">@table.Columns.Count columns</span>
+                                                </div>
+                                            </button>
+                                        </h2>
+                                        <div id="collapse-@accordionId" class="accordion-collapse collapse @(i == 0 ? "show" : "")" 
+                                             aria-labelledby="heading-@accordionId" data-bs-parent="#tablesAccordion">
+                                            <div class="accordion-body">
+                                                <div class="table-responsive">
+                                                    <table class="table table-sm">
+                                                        <thead>
+                                                            <tr>
+                                                                <th>Column</th>
+                                                                <th>Data Type</th>
+                                                                <th>Nullable</th>
+                                                                <th>Primary Key</th>
+                                                                <th>Obfuscation Type</th>
+                                                                <th>Status</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            @foreach (var column in table.Columns.OrderBy(c => c.OrdinalPosition))
+                                                            {
+                                                                <tr>
+                                                                    <td>
+                                                                        <strong>@column.ColumnName</strong>
+                                                                        @if (column.MaxLength.HasValue)
+                                                                        {
+                                                                            <small class="text-muted">(@column.MaxLength)</small>
+                                                                        }
+                                                                    </td>
+                                                                    <td>
+                                                                        <code>@column.SqlDataType</code>
+                                                                    </td>
+                                                                    <td>
+                                                                        @if (column.IsNullable)
+                                                                        {
+                                                                            <span class="badge bg-warning">Nullable</span>
+                                                                        }
+                                                                        else
+                                                                        {
+                                                                            <span class="badge bg-secondary">Not Null</span>
+                                                                        }
+                                                                    </td>
+                                                                    <td>
+                                                                        @if (column.IsPrimaryKey)
+                                                                        {
+                                                                            <span class="badge bg-primary">PK</span>
+                                                                        }
+                                                                    </td>
+                                                                    <td>
+                                                                        @if (column.ObfuscationMapping != null)
+                                                                        {
+                                                                            <span class="badge bg-info">@column.ObfuscationMapping.ObfuscationDataType</span>
+                                                                            @if (column.ObfuscationMapping.IsManuallyConfigured)
+                                                                            {
+                                                                                <span class="badge bg-dark">Manual</span>
+                                                                            }
+                                                                        }
+                                                                        else
+                                                                        {
+                                                                            <span class="text-muted">None</span>
+                                                                        }
+                                                                    </td>
+                                                                    <td>
+                                                                        @if (column.ObfuscationMapping?.IsEnabled == true)
+                                                                        {
+                                                                            <span class="badge bg-success">Enabled</span>
+                                                                        }
+                                                                        else if (column.ObfuscationMapping != null)
+                                                                        {
+                                                                            <span class="badge bg-danger">Disabled</span>
+                                                                        }
+                                                                        else
+                                                                        {
+                                                                            <span class="badge bg-secondary">No Mapping</span>
+                                                                        }
+                                                                    </td>
+                                                                </tr>
+                                                            }
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="text-center py-4">
+                                <p class="text-muted">No tables found for this product.</p>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="alert alert-warning" role="alert">
+                    Product not found or no mappings available.
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@section Styles {
+    <style>
+        .accordion-button:not(.collapsed) {
+            background-color: #e7f3ff;
+            color: #0c63e4;
+        }
+        
+        .table-sm th,
+        .table-sm td {
+            padding: 0.5rem;
+            font-size: 0.875rem;
+        }
+        
+        .badge {
+            font-size: 0.75em;
+        }
+        
+        code {
+            background-color: #f8f9fa;
+            padding: 0.2rem 0.4rem;
+            border-radius: 0.25rem;
+            font-size: 0.875em;
+        }
+    </style>
+}
