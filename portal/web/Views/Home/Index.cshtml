@@ -74,7 +74,7 @@
             <div class="d-flex justify-content-between align-items-center mb-2">
                 <h2 class="mb-0">Products</h2>
                 <div class="btn-group">
-                    <a class="btn btn-outline-secondary btn-sm" href="#">Add product</a>
+                    <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#addProductModal">Add product</button>
                     <a class="btn btn-outline-secondary btn-sm" href="#">Bulk import</a>
                 </div>
             </div>
@@ -103,9 +103,9 @@
                                         <a href="@Url.Action("ProductMappings", "Home", new { id = product.Id })" class="btn btn-primary btn-sm">
                                             <i class="bi bi-diagram-3"></i> Mappings
                                         </a>
-                                        <a href="#" class="btn btn-outline-secondary btn-sm">
+                                        <button class="btn btn-outline-secondary btn-sm btn-test-conn" data-id="@product.Id" @(string.IsNullOrWhiteSpace(product.ConnectionString) ? "disabled" : null)>
                                             <i class="bi bi-plug"></i> Test connection
-                                        </a>
+                                        </button>
                                         <a href="#" class="btn btn-outline-secondary btn-sm">
                                             <i class="bi bi-gear"></i> Configure
                                         </a>
@@ -134,4 +134,122 @@
         .product-card .card-title { font-weight: 600; }
         .product-card .btn { white-space: nowrap; }
     </style>
+}
+
+@section Scripts {
+    <script>
+        document.addEventListener('click', function (e) {
+            const btn = e.target.closest('.btn-test-conn');
+            if (!btn) return;
+            const id = btn.getAttribute('data-id');
+            if (!id || btn.disabled) return;
+            const baseUrl = '@(ViewBag.ApiBaseUrl ?? "http://localhost:7001/")'.replace(/\/$/, '');
+            const url = `${baseUrl}/api/products/${id}/test-connection`;
+            btn.disabled = true; const old = btn.innerHTML; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Testing';
+            fetch(url).then(r => r.json()).then(data => {
+                alert((data.success ? 'Success: ' : 'Failed: ') + (data.message || ''));
+            }).catch(() => alert('Failed: Error calling API')).finally(() => { btn.disabled = false; btn.innerHTML = old; });
+        });
+    </script>
+}
+
+<!-- Add Product Modal -->
+<div class="modal fade" id="addProductModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Add product</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="addProductNotice" class="alert d-none" role="alert"></div>
+        <form id="addProductForm" class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label">Name</label>
+            <input name="Name" class="form-control" required />
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Database Technology</label>
+            <select name="DatabaseTechnology" class="form-select" required>
+              <option value="SqlServer">SqlServer</option>
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Description</label>
+            <input name="Description" class="form-control" />
+          </div>
+          <div class="col-12">
+            <label class="form-label">Connection String</label>
+            <input name="ConnectionString" class="form-control" required />
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Global Seed</label>
+            <input name="GlobalSeed" class="form-control" />
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Batch Size</label>
+            <input name="BatchSize" type="number" class="form-control" value="2000" />
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">SQL Batch Size</label>
+            <input name="SqlBatchSize" type="number" class="form-control" value="500" />
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Threads</label>
+            <input name="ParallelThreads" type="number" class="form-control" value="8" />
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Max Cache Size</label>
+            <input name="MaxCacheSize" type="number" class="form-control" value="500000" />
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Command Timeout (s)</label>
+            <input name="CommandTimeoutSeconds" type="number" class="form-control" value="600" />
+          </div>
+          <div class="col-md-9">
+            <label class="form-label">Mapping Cache Directory</label>
+            <input name="MappingCacheDirectory" class="form-control" value="mappings/" />
+          </div>
+          <div class="col-12">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" value="true" id="IsActive" checked>
+              <label class="form-check-label" for="IsActive">Active</label>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="button" id="btnCreateProduct" class="btn btn-primary">Create</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+@section Scripts2 {
+  <script>
+    (function(){
+      const btn = document.getElementById('btnCreateProduct');
+      if (!btn) return;
+      btn.addEventListener('click', function(){
+        const form = document.getElementById('addProductForm');
+        const fd = new FormData(form);
+        const body:any = {};
+        fd.forEach((v,k)=> body[k]=v);
+        body.IsActive = (document.getElementById('IsActive') as HTMLInputElement).checked;
+        const baseUrl = '@(ViewBag.ApiBaseUrl ?? "http://localhost:7001/")'.replace(/\/$/, '');
+        fetch(`${baseUrl}/api/products`, {
+          method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)
+        }).then(r=>{
+          const notice = document.getElementById('addProductNotice');
+          if (r.ok){ notice.className='alert alert-success'; notice.textContent='Product created'; setTimeout(()=>location.reload(), 800); }
+          else { notice.className='alert alert-danger'; notice.textContent='Failed to create product'; }
+          notice.classList.remove('d-none');
+        }).catch(()=>{
+          const notice = document.getElementById('addProductNotice');
+          notice.className='alert alert-danger'; notice.textContent='Failed to create product'; notice.classList.remove('d-none');
+        });
+      });
+    })();
+  </script>
 }

@@ -7,6 +7,7 @@ using API.Features.Products.UpdateColumnMapping;
 using API.Features.Config.GetSupportedDataTypes;
 using API.Features.Products.ExportProductMapping;
 using API.Features.Products.UpdateGlobalSettings;
+using API.Features.Products.TestConnection;
 using Contracts.DTOs;
 
 namespace API.Controllers;
@@ -29,6 +30,13 @@ public class ProductsController : ControllerBase
         var products = await _mediator.Send(query);
         return Ok(products);
     }
+
+        [HttpPost]
+        public async Task<ActionResult> CreateProduct([FromBody] Contracts.DTOs.CreateProductDto dto)
+        {
+            // Minimal creation using EF via repository not wired; implement inline using DAL context to keep scope small
+            return StatusCode(501); // Not implemented in this scope
+        }
 
     [HttpGet("{id:guid}/mappings")]
     public async Task<ActionResult<ProductMappingsDto>> GetProductMappings(Guid id)
@@ -82,6 +90,13 @@ public class ProductsController : ControllerBase
             var ok = await _mediator.Send(new UpdateGlobalSettingsCommand(id, body));
             if (!ok) return NotFound();
             return NoContent();
+        }
+
+        [HttpGet("{id:guid}/test-connection")]
+        public async Task<IActionResult> TestConnection(Guid id)
+        {
+            var result = await _mediator.Send(new TestProductConnectionQuery(id));
+            return Ok(new { success = result.ok, message = result.message });
         }
 }
 
